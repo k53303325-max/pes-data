@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum Plan {
+  TEST
+  START
+  STANDARD
+  PRO
+  MAX
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  SUCCESS
+  FAILED
+}
+
+enum TransactionType {
+  DEPOSIT
+  CHARGE
+  REFUND
+}
+
+enum Cluster {
+  MAIN
+  CLUSTER_1
+  CLUSTER_2
+  CLUSTER_3
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String?
+  phone         String?
+  email         String        @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  balance       Int           @default(0)
+  plan          Plan          @default(TEST)
+  role          UserRole      @default(USER)
+  whiteLabel    Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+  transactions  Transaction[]
+  apiKeys       ApiKey[]
+  webhooks      Webhook[]
+  applications  Application[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  dailyLimit      Int      @default(100)
+  active          Boolean  @default(true)
+  clustersEnabled Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sources Source[]
+  leads   Lead[]
+}
+
+model Source {
+  id             String   @id @default(cuid())
+  projectId      String
+  domain         String
+  active         Boolean  @default(true)
+  conversionRate Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  leads   Lead[]
+
+  @@unique([projectId, domain])
+}
+
+model Lead {
+  id        String     @id @default(cuid())
+  projectId String
+  sourceId  String?
+  phone     String
+  source    String
+  cluster   Cluster    @default(MAIN)
+  status    LeadStatus @default(NEW)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  projectRef Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceRef  Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([phone])
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  userId      String
+  amount      Int
+  type        TransactionType
+  description String?
+  createdAt   DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ApiKey {
+  id         String   @id @default(cuid())
+  userId     String
+  key        String   @unique
+  allowedIPs String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Application {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String
+  company   String?
+  message   String?
+  createdAt DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model PlatformStats {
+  id             String   @id @default("platform")
+  totalLeads     Int      @default(0)
+  totalUsers     Int      @default(0)
+  totalProjects  Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
