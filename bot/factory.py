@@ -43,9 +43,9 @@ def get_dispatcher() -> Dispatcher:
                 pass
 
         _dp.errors.register(errors_handler)
-        _dp.include_router(start.router)
         _dp.include_router(payments.router)
         _dp.include_router(competitors.router)
+        _dp.include_router(start.router)
     return _dp
 
 

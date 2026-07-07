@@ -19,11 +19,13 @@ from database.models import (
     Order,
     OrderStatus,
     Payment,
+    PaymentStatus,
     User,
     UserStatus,
 )
 from services.admin_stats_service import dashboard_stats, list_users, sales_by_day
 from services.delivery_service import commit_delivery, parse_contacts_file, preview_delivery
+from services.order_service import create_test_order
 from services.telegram_notify import notify_new_contacts, notify_payment_success
 from payments.yookassa import process_successful_payment
 from services.user_service import get_user_with_orders, order_remaining
@@ -284,6 +286,21 @@ async def orders_page(request: Request, status: str = ""):
             "order_remaining": order_remaining,
         },
     )
+
+
+@app.post("/delivery/test-order")
+async def delivery_test_order(request: Request, user_id: int = Form(...)):
+    if redirect := auth_guard(request):
+        return redirect
+    try:
+        async with async_session() as session:
+            await create_test_order(session, user_id)
+        return RedirectResponse(
+            f"/delivery?user_id={user_id}&msg=Тестовый заказ создан (100 контактов)",
+            status_code=303,
+        )
+    except ValueError as exc:
+        return RedirectResponse(f"/delivery?user_id={user_id}&msg={exc}", status_code=303)
 
 
 @app.get("/delivery", response_class=HTMLResponse)

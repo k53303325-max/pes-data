@@ -40,6 +40,7 @@ async def create_payment(
     user: User,
     tariff: TariffInfo,
     bot_username: str = "Pesdata_bot",
+    amount: int | None = None,
 ) -> PaymentLink:
     if user.status == UserStatus.BLOCKED.value:
         raise ValueError("Аккаунт заблокирован")
@@ -53,10 +54,12 @@ async def create_payment(
     if active.scalar_one_or_none():
         raise ValueError("Сначала завершите текущий пакет")
 
+    pay_amount = amount if amount is not None else tariff.price
+
     payment = Payment(
         user_id=user.id,
         tariff_id=tariff.id,
-        amount=tariff.price,
+        amount=pay_amount,
         status=PaymentStatus.PENDING.value,
     )
     session.add(payment)
@@ -72,20 +75,21 @@ async def create_payment(
             payment_db_id=payment.id,
             external_id=mock_id,
             confirmation_url=f"https://t.me/{bot_username}?start=pay_{payment.id}",
-            amount=tariff.price,
+            amount=pay_amount,
         )
 
     _configure_yookassa()
     from yookassa import Payment as YooPayment
 
+    promo_note = " (промокод)" if pay_amount != tariff.price else ""
     payload = {
-        "amount": {"value": f"{tariff.price:.2f}", "currency": "RUB"},
+        "amount": {"value": f"{pay_amount:.2f}", "currency": "RUB"},
         "confirmation": {
             "type": "redirect",
             "return_url": settings.yookassa_return_url,
         },
         "capture": True,
-        "description": f"Пёс Дата — {tariff.name} ({tariff.contact_limit} контактов)",
+        "description": f"Пёс Дата — {tariff.name}{promo_note} ({tariff.contact_limit} контактов)",
         "metadata": {
             "payment_db_id": str(payment.id),
             "user_telegram_id": str(user.telegram_id),
@@ -111,7 +115,7 @@ async def create_payment(
         payment_db_id=payment.id,
         external_id=yoo_payment.id,
         confirmation_url=yoo_payment.confirmation.confirmation_url,
-        amount=tariff.price,
+        amount=pay_amount,
     )
 
 

@@ -44,3 +44,16 @@ python main.py        # бот (polling, отдельно)
 | `ADMIN_LOGIN` | Вручную |
 | `ADMIN_PASSWORD` | Вручную |
 | `ADMIN_SECRET_KEY` | Вручную (случайная строка) |
+| `YOOKASSA_SHOP_ID` | [yookassa.ru](https://yookassa.ru) → Настройки → Ключи API |
+| `YOOKASSA_SECRET_KEY` | Секретный ключ из личного кабинета ЮKassa |
+| `YOOKASSA_RETURN_URL` | `https://t.me/Pesdata_bot` (после оплаты) |
+
+### 3. Webhook ЮKassa
+
+В личном кабинете ЮKassa → **Интеграция** → **HTTP-уведомления**:
+
+```
+https://pes-data.vercel.app/yookassa/webhook
+```
+
+Событие: **payment.succeeded**

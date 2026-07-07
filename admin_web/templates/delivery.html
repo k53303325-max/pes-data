@@ -17,21 +17,49 @@
   </select>
 </form>
 
-{% if selected_user and active_order %}
+{% if selected_user %}
 <div class="card">
   <p><strong>Пользователь:</strong> {{ selected_user.first_name or selected_user.username or selected_user.telegram_id }}</p>
-  <p><strong>Пакет:</strong> {{ active_order.tariff.name if active_order.tariff else '—' }} — {{ active_order.contact_limit }} контактов</p>
-  <p><strong>Получено:</strong> {{ active_order.received }}</p>
-  <p><strong>Осталось:</strong> {{ order_remaining(active_order) }}</p>
+  <p><strong>Статус:</strong> {{ labels.get(selected_user.status, selected_user.status) }}</p>
 
-  <form method="post" action="/delivery/preview" enctype="multipart/form-data" style="margin-top:20px">
+  {% if active_order %}
+  <p style="color:#6ee7a0">✅ <strong>Активный пакет:</strong> {{ active_order.tariff.name if active_order.tariff else '—' }} — {{ active_order.contact_limit }} контактов</p>
+  <p><strong>Получено:</strong> {{ active_order.received }} · <strong>Осталось:</strong> {{ order_remaining(active_order) }}</p>
+  {% else %}
+  <p style="color:#fbbf24">⚠️ <strong>Нет активного пакета</strong> — оплата не найдена</p>
+  {% endif %}
+
+  {% if selected_user.payments %}
+  <p><strong>Оплаты:</strong>
+    {% for p in selected_user.payments[:5] %}
+      {{ p.amount }} ₽ — {{ labels.get(p.status, p.status) }}{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </p>
+  {% endif %}
+</div>
+
+{% if active_order %}
+<div class="card">
+  <form method="post" action="/delivery/preview" enctype="multipart/form-data">
     <input type="hidden" name="order_id" value="{{ active_order.id }}">
     <label>Файл контактов (TXT, CSV, XLSX)</label>
     <input type="file" name="file" accept=".txt,.csv,.xlsx" required>
     <button class="btn" type="submit">Загрузить и проверить</button>
   </form>
 </div>
-{% elif selected_user %}
-<div class="card">У пользователя нет активного пакета. Сначала создайте и активируйте заказ.</div>
+{% else %}
+<div class="card" style="border-color:#6366f1">
+  <p>Для теста можно создать заказ без оплаты:</p>
+  <form method="post" action="/delivery/test-order">
+    <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+    <button class="btn" type="submit" style="background:#6366f1">
+      🧪 Создать тестовый заказ (Старт, 100 контактов)
+    </button>
+  </form>
+  <p style="color:#888;font-size:13px;margin-top:12px">
+    После создания появится форма загрузки файла с контактами.
+  </p>
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}

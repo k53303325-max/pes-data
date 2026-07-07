@@ -33,6 +33,7 @@ class Settings:
     admin_host: str
     admin_port: int
     is_vercel: bool
+    promo_test_code: str
 
 
 def get_settings() -> Settings:
@@ -44,7 +45,7 @@ def get_settings() -> Settings:
         yookassa_shop_id=os.getenv("YOOKASSA_SHOP_ID", ""),
         yookassa_secret_key=os.getenv("YOOKASSA_SECRET_KEY", ""),
         yookassa_return_url=os.getenv(
-            "YOOKASSA_RETURN_URL", "https://t.me/Pesdata_bot"
+            "YOOKASSA_RETURN_URL", "https://t.me/Pesdata_bot?start=payment_ok"
         ),
         webhook_host=os.getenv("WEBHOOK_HOST", "0.0.0.0"),
         webhook_port=int(os.getenv("WEBHOOK_PORT", "8080")),
@@ -59,6 +60,10 @@ def get_settings() -> Settings:
         admin_host=os.getenv("ADMIN_HOST", "127.0.0.1"),
         admin_port=int(os.getenv("ADMIN_PORT", "8000")),
         is_vercel=os.getenv("VERCEL") == "1",
+        promo_test_code=os.getenv(
+            "PROMO_TEST_CODE",
+            "PES.DATA-7k9Qm-zX2$TEST-1RUB-v3",
+        ),
     )
 
 

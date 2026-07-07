@@ -107,7 +107,7 @@ async def _show_user_home(target: Message, user: User, *, edit: bool = False) ->
         await target.answer(text, reply_markup=kb)
 
 
-@router.message(CommandStart())
+@router.message(CommandStart(deep_link=False))
 async def cmd_start(message: Message) -> None:
     try:
         async with async_session() as session:
