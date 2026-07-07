@@ -4,17 +4,11 @@ import os
 
 from dotenv import load_dotenv
 
+from config.db_url import get_app_url, resolve_database_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
-
-
-def normalize_database_url(url: str) -> str:
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+asyncpg://", 1)
-    if url.startswith("postgresql://") and "+asyncpg" not in url:
-        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return url
 
 
 @dataclass(frozen=True)
@@ -22,6 +16,7 @@ class Settings:
     bot_token: str
     admin_telegram_id: int
     database_url: str
+    app_url: str
     yookassa_shop_id: str
     yookassa_secret_key: str
     yookassa_return_url: str
@@ -41,17 +36,11 @@ class Settings:
 
 
 def get_settings() -> Settings:
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        db_path = BASE_DIR / "pes_data.db"
-        db_url = f"sqlite+aiosqlite:///{db_path}"
-    else:
-        db_url = normalize_database_url(db_url)
-
     return Settings(
         bot_token=os.getenv("BOT_TOKEN", ""),
         admin_telegram_id=int(os.getenv("ADMIN_ID", "0")),
-        database_url=db_url,
+        database_url=resolve_database_url(),
+        app_url=get_app_url(),
         yookassa_shop_id=os.getenv("YOOKASSA_SHOP_ID", ""),
         yookassa_secret_key=os.getenv("YOOKASSA_SECRET_KEY", ""),
         yookassa_return_url=os.getenv("YOOKASSA_RETURN_URL", "https://t.me/"),

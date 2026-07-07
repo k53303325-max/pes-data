@@ -2,28 +2,13 @@
 
 Telegram-бот + админ-панель для SaaS-платформы лидогенерации.
 
-## Запуск
+## Всё на Vercel
 
-### 1. Бот (Telegram)
+См. **[VERCEL.md](VERCEL.md)** — подключение Postgres через Vercel Storage (без neon.tech).
 
-```bash
-source venv/bin/activate
-pip install -r requirements.txt
-python main.py
-```
+**Админка:** https://pes-data.vercel.app/login
 
-Или двойной клик: **Запуск бота.command**
-
-### 2. Админ-панель
-
-```bash
-source venv/bin/activate
-python run_admin.py
-```
-
-Откройте: http://127.0.0.1:8000
-
-Логин/пароль — из `.env` (`ADMIN_LOGIN`, `ADMIN_PASSWORD`).
+## Локальный запуск
 
 ## Этап 1 — /start
 

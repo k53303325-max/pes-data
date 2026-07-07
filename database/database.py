@@ -1,13 +1,22 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from config.settings import settings
 from database.models import Base, Tariff
 
 connect_args = {}
+engine_kwargs: dict = {"echo": False}
+
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+elif settings.is_vercel:
+    engine_kwargs["poolclass"] = NullPool
 
-engine = create_async_engine(settings.database_url, echo=False, connect_args=connect_args)
+engine = create_async_engine(
+    settings.database_url or "sqlite+aiosqlite:///:memory:",
+    connect_args=connect_args,
+    **engine_kwargs,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 TARIFFS = [

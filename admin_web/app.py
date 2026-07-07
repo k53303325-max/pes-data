@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
 from admin_web.auth import check_credentials, is_authenticated, login, logout
+from bot.factory import ensure_telegram_webhook, get_bot, get_dispatcher
 from config.settings import settings
 from database.database import async_session, init_db
 from database.models import (
@@ -38,7 +39,29 @@ async def _ensure_db() -> None:
     global _db_initialized
     if not _db_initialized:
         await init_db()
+        await ensure_telegram_webhook()
         _db_initialized = True
+
+
+DB_SETUP_HTML = """
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<title>Пёс Дата — настройка</title>
+<style>body{{font-family:system-ui;max-width:560px;margin:60px auto;padding:0 20px;background:#1E1E3A;color:#F4F4FC}}
+h1{{color:#5B5FC7}}ol{{line-height:1.8}}a{{color:#7B7FE0}}code{{background:#ffffff15;padding:2px 6px;border-radius:4px}}</style></head>
+<body>
+<h1>🐶 Пёс Дата</h1>
+<p>Остался один шаг — подключить базу данных прямо в Vercel (без neon.tech):</p>
+<ol>
+<li>Откройте <a href="https://vercel.com/dashboard">Vercel Dashboard</a></li>
+<li>Проект <strong>pes-data</strong> → вкладка <strong>Storage</strong></li>
+<li><strong>Create Database</strong> → <strong>Postgres</strong> → <strong>Continue</strong></li>
+<li>Выберите регион → <strong>Create</strong> → <strong>Connect to pes-data</strong></li>
+<li>Нажмите <strong>Redeploy</strong> в Deployments</li>
+</ol>
+<p>После этого откройте <a href="/login">/login</a> — появится админка.</p>
+<p>Telegram-бот подключится автоматически через webhook.</p>
+</body></html>
+"""
 
 
 app.add_middleware(
@@ -71,22 +94,44 @@ STATUS_LABELS = {
 
 @app.middleware("http")
 async def init_db_middleware(request: Request, call_next):
-    if settings.is_vercel and settings.database_url.startswith("sqlite"):
-        return HTMLResponse(
-            "<h1>БД не настроена</h1>"
-            "<p>Добавьте <code>DATABASE_URL</code> (PostgreSQL) в Vercel → Settings → Environment Variables</p>"
-            "<p>Бесплатно: <a href='https://neon.tech'>neon.tech</a></p>",
-            status_code=503,
-        )
+    if settings.is_vercel and not settings.database_url:
+        if request.url.path == "/webhook/telegram":
+            return HTMLResponse('{"ok":false,"error":"no db"}', status_code=503)
+        return HTMLResponse(DB_SETUP_HTML, status_code=503)
     try:
         await _ensure_db()
     except Exception as exc:
         return HTMLResponse(
             f"<h1>Ошибка подключения к БД</h1><pre>{exc}</pre>"
-            "<p>Проверьте DATABASE_URL в Vercel</p>",
+            "<p>Vercel → Storage → Postgres → Connect → Redeploy</p>",
             status_code=503,
         )
     return await call_next(request)
+
+
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """Telegram Bot webhook — работает на Vercel без polling."""
+    from aiogram.types import Update
+
+    if not settings.bot_token:
+        return {"ok": False, "error": "BOT_TOKEN not set"}
+
+    data = await request.json()
+    bot = get_bot()
+    dp = get_dispatcher()
+    update = Update.model_validate(data, context={"bot": bot})
+    await dp.feed_update(bot, update)
+    return {"ok": True}
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok" if settings.database_url else "need_database",
+        "vercel": settings.is_vercel,
+        "app_url": settings.app_url,
+    }
 
 
 def auth_guard(request: Request) -> RedirectResponse | None:
