@@ -4,13 +4,15 @@ from sqlalchemy.pool import NullPool
 from config.settings import settings
 from database.models import Base, Tariff
 
-connect_args = {}
+connect_args: dict = {}
 engine_kwargs: dict = {"echo": False}
 
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
-elif settings.is_vercel:
-    engine_kwargs["poolclass"] = NullPool
+elif settings.database_url.startswith("postgresql"):
+    connect_args = {"ssl": True}
+    if settings.is_vercel:
+        engine_kwargs["poolclass"] = NullPool
 
 engine = create_async_engine(
     settings.database_url or "sqlite+aiosqlite:///:memory:",
