@@ -20,12 +20,16 @@ logger = get_logger(__name__)
 class PaymentLink:
     payment_db_id: int
     external_id: str
-    confirmation_url: str
+    confirmation_url: str | None
     amount: int
+    is_mock: bool = False
 
 
 def _yookassa_configured() -> bool:
     return bool(settings.yookassa_shop_id and settings.yookassa_secret_key)
+
+
+is_yookassa_configured = _yookassa_configured
 
 
 def _configure_yookassa() -> None:
@@ -74,8 +78,9 @@ async def create_payment(
         return PaymentLink(
             payment_db_id=payment.id,
             external_id=mock_id,
-            confirmation_url=f"https://t.me/{bot_username}?start=pay_{payment.id}",
+            confirmation_url=None,
             amount=pay_amount,
+            is_mock=True,
         )
 
     _configure_yookassa()
@@ -116,6 +121,7 @@ async def create_payment(
         external_id=yoo_payment.id,
         confirmation_url=yoo_payment.confirmation.confirmation_url,
         amount=pay_amount,
+        is_mock=False,
     )
 
 

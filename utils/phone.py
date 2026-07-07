@@ -12,11 +12,31 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 PHONE_SPLIT_RE = re.compile(r"[\n,;|\s]+")
+# Номера в тексте / Excel: +7..., 8..., или 10–11 цифр подряд
+PHONE_FIND_RE = re.compile(r"(?:\+7|8|7)\d{10}|\d{11}")
+
+
+def _preprocess_raw(raw: str) -> str:
+    cleaned = raw.strip()
+    if not cleaned:
+        return ""
+    # Excel часто даёт 79991234567.0
+    if cleaned.endswith(".0") and cleaned[:-2].replace(".", "").isdigit():
+        cleaned = cleaned[:-2]
+    # Только цифры без +
+    digits = re.sub(r"\D", "", cleaned)
+    if len(digits) == 11 and digits.startswith("8"):
+        return "+7" + digits[1:]
+    if len(digits) == 11 and digits.startswith("7"):
+        return "+" + digits
+    if len(digits) == 10:
+        return "+7" + digits
+    return cleaned
 
 
 def normalize_phone(raw: str, default_region: str = "RU") -> str | None:
     """Normalize phone to E.164 (+79991234567) or return None if invalid."""
-    cleaned = raw.strip()
+    cleaned = _preprocess_raw(raw)
     if not cleaned:
         return None
 
@@ -34,7 +54,10 @@ def extract_phones(text: str) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
 
-    for part in PHONE_SPLIT_RE.split(text):
+    candidates = list(PHONE_SPLIT_RE.split(text))
+    candidates.extend(PHONE_FIND_RE.findall(text))
+
+    for part in candidates:
         part = part.strip()
         if not part:
             continue

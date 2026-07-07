@@ -8,9 +8,10 @@
   <p><strong>Пакет:</strong> {{ order.tariff.name }} ({{ order.contact_limit }} конт.)</p>
   <p><strong>Остаток пакета:</strong> {{ order_remaining(order) }}</p>
   <hr style="border-color:rgba(255,255,255,.1);margin:16px 0">
+  <p>📋 Найдено номеров: <strong>{{ total_raw }}</strong></p>
   <p>✅ К отправке: <strong>{{ preview.can_send }}</strong></p>
   <p>⚠️ Дубликаты: {{ preview.duplicates }}</p>
-  <p>🚫 Сверх лимита: {{ preview.skipped_limit }}</p>
+  <p>🚫 Невалидных / сверх лимита: {{ preview.invalid + preview.skipped_limit }}</p>
 
   {% if preview.can_send > 0 %}
   <form method="post" action="/delivery/send" style="margin-top:20px">

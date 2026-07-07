@@ -42,6 +42,10 @@ class DeliveryResult:
     order_completed: bool
 
 
+def parse_contacts_text(text: str) -> list[str]:
+    return extract_phones(text)
+
+
 def parse_contacts_file(content: bytes, filename: str) -> list[str]:
     name = filename.lower()
     if name.endswith(".xlsx"):
@@ -67,7 +71,16 @@ def _parse_xlsx(content: bytes) -> list[str]:
     phones: list[str] = []
     for sheet in wb.worksheets:
         for row in sheet.iter_rows(values_only=True):
-            phones.extend(extract_phones(" ".join(str(c) for c in row if c is not None)))
+            for cell in row:
+                if cell is None:
+                    continue
+                if isinstance(cell, float) and cell == int(cell):
+                    cell_str = str(int(cell))
+                elif isinstance(cell, int):
+                    cell_str = str(cell)
+                else:
+                    cell_str = str(cell)
+                phones.extend(extract_phones(cell_str))
     return phones
 
 

@@ -6,6 +6,7 @@ from services.tariff_service import TariffInfo
 CB_TARIFF_PREFIX = "tariff:"
 CB_PAY_PREFIX = "pay_tariff:"
 CB_PROMO_PREFIX = "promo_tariff:"
+CB_MOCK_PAY_PREFIX = "mock_pay:"
 
 
 def tariffs_keyboard(tariffs: list[TariffInfo]) -> InlineKeyboardMarkup:
@@ -30,8 +31,19 @@ def checkout_keyboard(tariff_id: int, price: int) -> InlineKeyboardMarkup:
     ])
 
 
-def pay_keyboard(url: str) -> InlineKeyboardMarkup:
+def payment_keyboard(link) -> InlineKeyboardMarkup:
+    """Клавиатура после создания платежа — только реальный URL ЮKassa или тест."""
+    if link.is_mock or not link.confirmation_url:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🧪 Тест: активировать без оплаты",
+                    callback_data=f"{CB_MOCK_PAY_PREFIX}{link.payment_db_id}",
+                )
+            ],
+            [InlineKeyboardButton(text="◀️ Назад", callback_data=CB_BACK)],
+        ])
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Перейти к оплате", url=url)],
+        [InlineKeyboardButton(text="💳 Перейти к оплате", url=link.confirmation_url)],
         [InlineKeyboardButton(text="◀️ Назад", callback_data=CB_BACK)],
     ])

@@ -24,7 +24,12 @@ from database.models import (
     UserStatus,
 )
 from services.admin_stats_service import dashboard_stats, list_users, sales_by_day
-from services.delivery_service import commit_delivery, parse_contacts_file, preview_delivery
+from services.delivery_service import (
+    commit_delivery,
+    parse_contacts_file,
+    parse_contacts_text,
+    preview_delivery,
+)
 from services.order_service import create_test_order
 from services.telegram_notify import notify_new_contacts, notify_payment_success
 from payments.yookassa import process_successful_payment
@@ -344,12 +349,37 @@ async def delivery_page(request: Request, user_id: int = 0, msg: str = ""):
 async def delivery_preview_view(
     request: Request,
     order_id: int = Form(...),
-    file: UploadFile = File(...),
+    phones_text: str = Form(""),
+    file: UploadFile | None = File(None),
 ):
     if redirect := auth_guard(request):
         return redirect
-    content = await file.read()
-    phones = parse_contacts_file(content, file.filename or "file.txt")
+
+    phones: list[str] = []
+    if phones_text.strip():
+        phones.extend(parse_contacts_text(phones_text))
+    if file and file.filename:
+        content = await file.read()
+        if content:
+            phones.extend(parse_contacts_file(content, file.filename))
+
+    # дедупликация с сохранением порядка
+    phones = list(dict.fromkeys(phones))
+    total_raw = len(phones)
+
+    if not phones:
+        order = None
+        async with async_session() as session:
+            order = await session.get(Order, order_id)
+            if order:
+                await session.refresh(order, ["user"])
+        user_id = order.user_id if order else 0
+        return RedirectResponse(
+            f"/delivery?user_id={user_id}&msg=Не найдено номеров. "
+            "Проверьте формат: +79991234567 или загрузите XLSX с колонкой телефонов.",
+            status_code=303,
+        )
+
     async with async_session() as session:
         preview = await preview_delivery(session, order_id, phones)
         order = await session.get(Order, order_id)
@@ -362,6 +392,7 @@ async def delivery_preview_view(
             "order": order,
             "phones_csv": ",".join(preview.phones),
             "order_remaining": order_remaining,
+            "total_raw": total_raw,
         },
     )
 

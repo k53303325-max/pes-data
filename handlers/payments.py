@@ -7,13 +7,13 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from database.database import async_session
-from handlers.start import _show_user_home
 from keyboards.payment_keyboard import (
+    CB_MOCK_PAY_PREFIX,
     CB_PAY_PREFIX,
     CB_PROMO_PREFIX,
     CB_TARIFF_PREFIX,
     checkout_keyboard,
-    pay_keyboard,
+    payment_keyboard,
 )
 from keyboards.start_keyboard import active_user_keyboard, back_keyboard
 from payments.yookassa import confirm_mock_payment, create_payment
@@ -38,14 +38,24 @@ async def _bot_username(bot) -> str:
     return me.username or "Pesdata_bot"
 
 
-def _checkout_text(tariff, price: int, promo_applied: bool = False) -> str:
+def _checkout_text(tariff, price: int, promo_applied: bool = False, *, mock: bool = False) -> str:
     promo_line = "\n🎟 <b>Промокод применён — 1 ₽</b>\n" if promo_applied else ""
+    if mock:
+        pay_hint = (
+            "⚠️ <b>ЮKassa не настроена</b> — реальная оплата недоступна.\n"
+            "Для теста нажмите «Тест: активировать без оплаты».\n\n"
+            "Администратор: добавьте YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY в Vercel."
+        )
+    else:
+        pay_hint = (
+            "Нажмите «Перейти к оплате» — откроется страница ЮKassa.\n"
+            "После оплаты бот пришлёт подтверждение автоматически."
+        )
     return (
         f"💳 <b>Оплата пакета «{tariff.name}»</b>{promo_line}\n\n"
         f"Сумма: <b>{price:,} ₽</b>\n".replace(",", " ")
         + f"Контактов: <b>{tariff.contact_limit:,}</b>\n\n".replace(",", " ")
-        + "Нажмите «Перейти к оплате» — откроется страница ЮKassa.\n"
-        "После оплаты бот пришлёт подтверждение автоматически."
+        + pay_hint
     )
 
 
@@ -85,6 +95,24 @@ async def cb_promo_tariff(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith(CB_MOCK_PAY_PREFIX))
+async def cb_mock_pay(callback: CallbackQuery) -> None:
+    payment_id = int(callback.data.removeprefix(CB_MOCK_PAY_PREFIX))
+    async with async_session() as session:
+        result = await confirm_mock_payment(session, payment_id)
+    if not result:
+        await callback.answer("Платёж не найден или уже обработан", show_alert=True)
+        return
+    user, order = result
+    await notify_payment_success(user.telegram_id, order.tariff.name, order.contact_limit)
+    await callback.message.edit_text(
+        f"✅ Тестовая активация!\nПакет «{order.tariff.name}» — {order.contact_limit} контактов.",
+        reply_markup=active_user_keyboard(),
+    )
+
+    await callback.answer("Пакет активирован")
+
+
 @router.message(PromoState.waiting_code, F.text)
 async def process_promo_code(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
@@ -121,8 +149,8 @@ async def process_promo_code(message: Message, state: FSMContext) -> None:
             return
 
     await message.answer(
-        _checkout_text(tariff, PROMO_PRICE, promo_applied=True),
-        reply_markup=pay_keyboard(link.confirmation_url),
+        _checkout_text(tariff, PROMO_PRICE, promo_applied=True, mock=link.is_mock),
+        reply_markup=payment_keyboard(link),
     )
 
 
@@ -156,8 +184,8 @@ async def _start_payment(
 
     price = amount if amount is not None else tariff.price
     await callback.message.edit_text(
-        _checkout_text(tariff, price, promo_applied=promo_applied),
-        reply_markup=pay_keyboard(link.confirmation_url),
+        _checkout_text(tariff, price, promo_applied=promo_applied, mock=link.is_mock),
+        reply_markup=payment_keyboard(link),
     )
     await callback.answer()
 
@@ -168,27 +196,7 @@ async def cmd_start_deeplink(message: Message) -> None:
     if len(args) < 2:
         return
 
-    payload = args[1]
-
-    if payload.startswith("pay_"):
-        try:
-            payment_id = int(payload.removeprefix("pay_"))
-        except ValueError:
-            return
-
-        async with async_session() as session:
-            result = await confirm_mock_payment(session, payment_id)
-
-        if not result:
-            await message.answer("⚠️ Платёж не найден или уже обработан.")
-            return
-
-        user, order = result
-        await notify_payment_success(user.telegram_id, order.tariff.name, order.contact_limit)
-        await _show_user_home(message, user)
-        return
-
-    if payload == "payment_ok":
+    if args[1] == "payment_ok":
         await message.answer(
             "✅ Спасибо! Если оплата прошла — бот пришлёт подтверждение в течение минуты.\n"
             "Если сообщения нет — напишите /start"
