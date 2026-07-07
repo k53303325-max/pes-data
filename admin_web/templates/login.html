@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Вход — Пёс Дата</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="card login-box">
+      <h2>🐶 Пёс Дата Admin</h2>
+      <p style="color:#999;margin:12px 0 20px">Вход в панель управления</p>
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <form method="post" action="/login">
+        <input name="username" placeholder="Логин" required>
+        <input name="password" type="password" placeholder="Пароль" required>
+        <button class="btn" type="submit" style="width:100%">Войти</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

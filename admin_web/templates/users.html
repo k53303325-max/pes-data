@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set active = 'users' %}
+{% block title %}Пользователи{% endblock %}
+{% block content %}
+<h2>Пользователи</h2>
+<form class="filters card" method="get">
+  <input name="q" value="{{ q }}" placeholder="Username или Telegram ID">
+  <select name="status">
+    <option value="">Все статусы</option>
+    {% for s,l in labels.items() if s in ['new','active','finished','blocked'] %}
+    <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Найти</button>
+</form>
+<div class="card">
+<table>
+  <tr><th>Telegram ID</th><th>Username</th><th>Имя</th><th>Регистрация</th><th>Статус</th><th></th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.telegram_id }}</td>
+    <td>@{{ u.username or '—' }}</td>
+    <td>{{ u.first_name or '—' }}</td>
+    <td>{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+    <td><span class="badge">{{ labels.get(u.status, u.status) }}</span></td>
+    <td><a href="/users/{{ u.id }}">Открыть</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6">Пользователей нет</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

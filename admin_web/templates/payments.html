@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% set active = 'payments' %}
+{% block title %}Оплаты{% endblock %}
+{% block content %}
+<h2>Оплаты</h2>
+<form class="filters card" method="get">
+  <select name="status">
+    <option value="">Все</option>
+    {% for s in ['pending','paid','canceled'] %}
+    <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ labels[s] }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Фильтр</button>
+</form>
+<div class="card"><table>
+  <tr><th>Пользователь</th><th>Тариф</th><th>Сумма</th><th>Создан</th><th>Оплачен</th><th>Статус</th></tr>
+  {% for p in payments %}
+  <tr>
+    <td><a href="/users/{{ p.user.id }}">@{{ p.user.username or p.user.telegram_id }}</a></td>
+    <td>{{ p.tariff.name if p.tariff else p.tariff_id }}</td>
+    <td>{{ p.amount }} ₽</td>
+    <td>{{ p.created_at.strftime('%d.%m.%Y') if p.created_at else '—' }}</td>
+    <td>{{ p.paid_at.strftime('%d.%m.%Y') if p.paid_at else '—' }}</td>
+    <td><span class="badge">{{ labels.get(p.status, p.status) }}</span></td>
+  </tr>
+  {% else %}<tr><td colspan="6">Нет платежей</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

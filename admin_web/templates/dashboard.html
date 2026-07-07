@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Dashboard — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Dashboard</h2>
+<div class="grid">
+  <div class="card"><div class="stat-value">{{ stats.total_users }}</div><div class="stat-label">Всего пользователей</div></div>
+  <div class="card"><div class="stat-value">{{ stats.new_today }}</div><div class="stat-label">Новых сегодня</div></div>
+  <div class="card"><div class="stat-value">{{ stats.active_packages }}</div><div class="stat-label">Активных пакетов</div></div>
+  <div class="card"><div class="stat-value">{{ stats.completed_packages }}</div><div class="stat-label">Завершённых пакетов</div></div>
+  <div class="card"><div class="stat-value">{{ stats.paid_orders }}</div><div class="stat-label">Оплаченных заказов</div></div>
+  <div class="card"><div class="stat-value">{{ "{:,}".format(stats.total_revenue).replace(",", " ") }} ₽</div><div class="stat-label">Сумма оплат</div></div>
+  <div class="card"><div class="stat-value">{{ stats.total_contacts }}</div><div class="stat-label">Отправлено контактов</div></div>
+</div>
+{% endblock %}

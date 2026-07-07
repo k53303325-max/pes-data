@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set active = 'users' %}
+{% block title %}Пользователь #{{ user.id }}{% endblock %}
+{% block content %}
+<h2>{{ user.first_name or 'Пользователь' }} @{{ user.username or user.telegram_id }}</h2>
+<div class="grid">
+  <div class="card"><strong>Telegram ID</strong><br>{{ user.telegram_id }}</div>
+  <div class="card"><strong>Статус</strong><br><span class="badge">{{ labels.get(user.status, user.status) }}</span></div>
+  <div class="card"><strong>Регистрация</strong><br>{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</div>
+</div>
+
+<h2 style="margin-top:24px">Заказы</h2>
+<div class="card"><table>
+  <tr><th>#</th><th>Тариф</th><th>Лимит</th><th>Получено</th><th>Остаток</th><th>Статус</th></tr>
+  {% for o in user.orders %}
+  <tr>
+    <td>{{ o.id }}</td><td>{{ o.tariff.name if o.tariff else o.tariff_id }}</td>
+    <td>{{ o.contact_limit }}</td><td>{{ o.received }}</td>
+    <td>{{ order_remaining(o) }}</td>
+    <td><span class="badge">{{ labels.get(o.status, o.status) }}</span></td>
+  </tr>
+  {% else %}<tr><td colspan="6">Нет заказов</td></tr>{% endfor %}
+</table></div>
+
+<h2 style="margin-top:24px">Оплаты</h2>
+<div class="card"><table>
+  <tr><th>#</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr>
+  {% for p in user.payments %}
+  <tr>
+    <td>{{ p.id }}</td><td>{{ p.tariff.name if p.tariff else p.tariff_id }}</td>
+    <td>{{ p.amount }} ₽</td><td>{{ labels.get(p.status, p.status) }}</td>
+    <td>{{ p.created_at.strftime('%d.%m.%Y') if p.created_at else '—' }}</td>
+  </tr>
+  {% else %}<tr><td colspan="5">Нет оплат</td></tr>{% endfor %}
+</table></div>
+
+<h2 style="margin-top:24px">Конкуренты</h2>
+<div class="card"><table>
+  <tr><th>Номер</th><th>Дата</th></tr>
+  {% for c in user.competitors %}
+  <tr><td>{{ c.phone }}</td><td>{{ c.created_at.strftime('%d.%m.%Y') if c.created_at else '—' }}</td></tr>
+  {% else %}<tr><td colspan="2">Нет конкурентов</td></tr>{% endfor %}
+</table></div>
+
+<h2 style="margin-top:24px">История выдачи</h2>
+<div class="card"><table>
+  <tr><th>#</th><th>Кол-во</th><th>Дата</th></tr>
+  {% for d in deliveries %}
+  <tr><td>{{ d.id }}</td><td>{{ d.count }}</td><td>{{ d.created_at.strftime('%d.%m.%Y %H:%M') if d.created_at else '—' }}</td></tr>
+  {% else %}<tr><td colspan="3">Нет выдач</td></tr>{% endfor %}
+</table></div>
+
+<p style="margin-top:16px"><a class="btn" href="/delivery?user_id={{ user.id }}">Отправить контакты</a></p>
+{% endblock %}

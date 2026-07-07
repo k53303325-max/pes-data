@@ -1,0 +1,28 @@
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:#1E1E3A;color:#F4F4FC;line-height:1.5}
+a{color:#7B7FE0;text-decoration:none}a:hover{color:#9B9FE8}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:240px;background:#16162B;border-right:1px solid rgba(255,255,255,.08);padding:24px 16px;position:fixed;height:100vh}
+.sidebar h1{font-size:18px;margin-bottom:24px;color:#fff}
+.sidebar nav a{display:block;padding:10px 12px;border-radius:8px;color:#ccc;margin-bottom:4px}
+.sidebar nav a.active,.sidebar nav a:hover{background:rgba(91,95,199,.2);color:#fff}
+.main{margin-left:240px;flex:1;padding:32px}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.stat-value{font-size:28px;font-weight:700;color:#5B5FC7}
+.stat-label{font-size:13px;color:#999;margin-top:4px}
+h2{font-size:22px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+th{color:#999;font-weight:500;font-size:12px;text-transform:uppercase}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:rgba(91,95,199,.25);color:#9B9FE8}
+.btn{display:inline-block;padding:8px 16px;border-radius:8px;border:none;background:#5B5FC7;color:#fff;font-size:14px;cursor:pointer}
+.btn:hover{background:#7B7FE0}
+.btn-secondary{background:rgba(255,255,255,.08)}
+input,select,textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;margin-bottom:12px}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.login-box{width:360px}
+.error{color:#f87171;margin-bottom:12px;font-size:14px}
+.msg{color:#4ade80;margin-bottom:12px}
+.filters{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.filters input,.filters select{width:auto;min-width:160px;margin:0}

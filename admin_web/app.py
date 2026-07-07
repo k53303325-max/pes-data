@@ -1,0 +1,307 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+from starlette.middleware.sessions import SessionMiddleware
+
+from admin_web.auth import check_credentials, is_authenticated, login, logout
+from config.settings import settings
+from database.database import async_session, init_db
+from database.models import (
+    ContactDelivery,
+    Order,
+    OrderStatus,
+    Payment,
+    User,
+    UserStatus,
+)
+from services.admin_stats_service import dashboard_stats, list_users, sales_by_day
+from services.delivery_service import commit_delivery, parse_contacts_file, preview_delivery
+from services.telegram_notify import notify_new_contacts
+from services.user_service import get_user_with_orders, order_remaining
+
+BASE = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE / "templates"))
+
+app = FastAPI(title="Пёс Дата Admin")
+
+_db_initialized = False
+
+
+async def _ensure_db() -> None:
+    global _db_initialized
+    if not _db_initialized:
+        await init_db()
+        _db_initialized = True
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.admin_secret_key,
+    session_cookie="pes_admin_session",
+    max_age=86400 * 7,
+    same_site="lax",
+    https_only=settings.is_vercel,
+)
+
+if not settings.is_vercel:
+    static_dir = BASE / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+STATUS_LABELS = {
+    "new": "Новый",
+    "active": "Активен",
+    "finished": "Завершён",
+    "blocked": "Заблокирован",
+    "pending": "Ожидает оплаты",
+    "paid": "Оплачено",
+    "canceled": "Отменено",
+    "created": "Создан",
+    "in_progress": "Выполняется",
+    "completed": "Завершён",
+}
+
+
+@app.middleware("http")
+async def init_db_middleware(request: Request, call_next):
+    await _ensure_db()
+    return await call_next(request)
+
+
+def auth_guard(request: Request) -> RedirectResponse | None:
+    if not is_authenticated(request):
+        return RedirectResponse("/login", status_code=303)
+    return None
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    if is_authenticated(request):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+
+
+@app.post("/login")
+async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
+    if check_credentials(username, password):
+        login(request)
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(
+        "login.html", {"request": request, "error": "Неверный логин или пароль"}
+    )
+
+
+@app.get("/logout")
+async def logout_view(request: Request):
+    logout(request)
+    return RedirectResponse("/login", status_code=303)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        stats = await dashboard_stats(session)
+    return templates.TemplateResponse(
+        "dashboard.html", {"request": request, "stats": stats, "labels": STATUS_LABELS}
+    )
+
+
+@app.get("/users", response_class=HTMLResponse)
+async def users_page(request: Request, q: str = "", status: str = ""):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        users = await list_users(session, q, status)
+    return templates.TemplateResponse(
+        "users.html",
+        {"request": request, "users": users, "q": q, "status": status, "labels": STATUS_LABELS},
+    )
+
+
+@app.get("/users/{user_id}", response_class=HTMLResponse)
+async def user_detail(request: Request, user_id: int):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        user = await get_user_with_orders(session, user_id)
+        if not user:
+            return RedirectResponse("/users", status_code=303)
+        deliveries = (
+            await session.execute(
+                select(ContactDelivery)
+                .where(ContactDelivery.user_id == user_id)
+                .order_by(ContactDelivery.created_at.desc())
+            )
+        ).scalars().all()
+    return templates.TemplateResponse(
+        "user_detail.html",
+        {
+            "request": request,
+            "user": user,
+            "deliveries": deliveries,
+            "labels": STATUS_LABELS,
+            "order_remaining": order_remaining,
+        },
+    )
+
+
+@app.get("/payments", response_class=HTMLResponse)
+async def payments_page(request: Request, status: str = ""):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        stmt = (
+            select(Payment)
+            .options(selectinload(Payment.user), selectinload(Payment.tariff))
+            .order_by(Payment.created_at.desc())
+        )
+        if status:
+            stmt = stmt.where(Payment.status == status)
+        payments = (await session.execute(stmt)).scalars().all()
+    return templates.TemplateResponse(
+        "payments.html",
+        {"request": request, "payments": payments, "status": status, "labels": STATUS_LABELS},
+    )
+
+
+@app.get("/orders", response_class=HTMLResponse)
+async def orders_page(request: Request, status: str = ""):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        stmt = (
+            select(Order)
+            .options(selectinload(Order.user), selectinload(Order.tariff))
+            .order_by(Order.created_at.desc())
+        )
+        if status:
+            stmt = stmt.where(Order.status == status)
+        orders = (await session.execute(stmt)).scalars().all()
+    return templates.TemplateResponse(
+        "orders.html",
+        {
+            "request": request,
+            "orders": orders,
+            "status": status,
+            "labels": STATUS_LABELS,
+            "order_remaining": order_remaining,
+        },
+    )
+
+
+@app.get("/delivery", response_class=HTMLResponse)
+async def delivery_page(request: Request, user_id: int = 0, msg: str = ""):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        users = (
+            await session.execute(select(User).order_by(User.created_at.desc()))
+        ).scalars().all()
+        selected_user = None
+        active_order = None
+        if user_id:
+            selected_user = await get_user_with_orders(session, user_id)
+            if selected_user:
+                active_order = next(
+                    (
+                        o
+                        for o in selected_user.orders
+                        if o.status
+                        in (OrderStatus.ACTIVE.value, OrderStatus.IN_PROGRESS.value)
+                    ),
+                    None,
+                )
+    return templates.TemplateResponse(
+        "delivery.html",
+        {
+            "request": request,
+            "users": users,
+            "selected_user": selected_user,
+            "active_order": active_order,
+            "user_id": user_id,
+            "msg": msg,
+            "order_remaining": order_remaining,
+        },
+    )
+
+
+@app.post("/delivery/preview", response_class=HTMLResponse)
+async def delivery_preview_view(
+    request: Request,
+    order_id: int = Form(...),
+    file: UploadFile = File(...),
+):
+    if redirect := auth_guard(request):
+        return redirect
+    content = await file.read()
+    phones = parse_contacts_file(content, file.filename or "file.txt")
+    async with async_session() as session:
+        preview = await preview_delivery(session, order_id, phones)
+        order = await session.get(Order, order_id)
+        await session.refresh(order, ["tariff", "user"])
+    return templates.TemplateResponse(
+        "delivery_preview.html",
+        {
+            "request": request,
+            "preview": preview,
+            "order": order,
+            "phones_csv": ",".join(preview.phones),
+            "order_remaining": order_remaining,
+        },
+    )
+
+
+@app.post("/delivery/send")
+async def delivery_send(
+    request: Request,
+    order_id: int = Form(...),
+    phones_csv: str = Form(...),
+    note: str = Form(""),
+):
+    if redirect := auth_guard(request):
+        return redirect
+    phones = [p.strip() for p in phones_csv.split(",") if p.strip()]
+    try:
+        async with async_session() as session:
+            result = await commit_delivery(session, order_id, phones, note or None)
+        await notify_new_contacts(
+            result.user_telegram_id,
+            result.sent_count,
+            result.received,
+            result.limit,
+            result.remaining,
+        )
+        return RedirectResponse(
+            f"/delivery?user_id={result.user_db_id}&msg=Отправлено {result.sent_count} контактов",
+            status_code=303,
+        )
+    except ValueError as exc:
+        return RedirectResponse(f"/delivery?msg={exc}", status_code=303)
+
+
+@app.get("/stats", response_class=HTMLResponse)
+async def stats_page(request: Request):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        stats = await dashboard_stats(session)
+        sales = await sales_by_day(session)
+        popular = (
+            await session.execute(
+                select(Order.tariff_id, func.count(Order.id).label("cnt"))
+                .group_by(Order.tariff_id)
+                .order_by(func.count(Order.id).desc())
+            )
+        ).all()
+    return templates.TemplateResponse(
+        "stats.html", {"request": request, "stats": stats, "sales": sales, "popular": popular}
+    )

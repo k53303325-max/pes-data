@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% set active = 'orders' %}
+{% block title %}Заказы{% endblock %}
+{% block content %}
+<h2>Заказы</h2>
+<form class="filters card" method="get">
+  <select name="status">
+    <option value="">Все</option>
+    {% for s in ['created','active','in_progress','completed'] %}
+    <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ labels[s] }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Фильтр</button>
+</form>
+<div class="card"><table>
+  <tr><th>#</th><th>Пользователь</th><th>Тариф</th><th>Лимит</th><th>Получено</th><th>Остаток</th><th>Статус</th></tr>
+  {% for o in orders %}
+  <tr>
+    <td>{{ o.id }}</td>
+    <td><a href="/users/{{ o.user.id }}">@{{ o.user.username or o.user.telegram_id }}</a></td>
+    <td>{{ o.tariff.name if o.tariff else o.tariff_id }}</td>
+    <td>{{ o.contact_limit }}</td>
+    <td>{{ o.received }}</td>
+    <td>{{ order_remaining(o) }}</td>
+    <td><span class="badge">{{ labels.get(o.status, o.status) }}</span></td>
+  </tr>
+  {% else %}<tr><td colspan="7">Нет заказов</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

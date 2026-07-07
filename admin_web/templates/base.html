@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Пёс Дата Admin{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>🐶 Пёс Дата</h1>
+      <nav>
+        <a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="/users" class="{% if active == 'users' %}active{% endif %}">Пользователи</a>
+        <a href="/payments" class="{% if active == 'payments' %}active{% endif %}">Оплаты</a>
+        <a href="/orders" class="{% if active == 'orders' %}active{% endif %}">Заказы</a>
+        <a href="/delivery" class="{% if active == 'delivery' %}active{% endif %}">Отправка контактов</a>
+        <a href="/stats" class="{% if active == 'stats' %}active{% endif %}">Статистика</a>
+        <a href="/logout" style="margin-top:24px">Выйти</a>
+      </nav>
+    </aside>
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

@@ -1,58 +1,67 @@
 # Пёс Дата
 
-Платформа лидогенерации — определяет посетителей сайтов конкурентов и передаёт клиентам их номера телефонов.
+Telegram-бот + админ-панель для SaaS-платформы лидогенерации.
 
-## Стек
+## Запуск
 
-- **Frontend:** Next.js 14, TypeScript, Tailwind CSS
-- **Backend:** Next.js API Routes
-- **БД:** PostgreSQL + Prisma
-- **Авторизация:** NextAuth.js
-
-## Быстрый старт
+### 1. Бот (Telegram)
 
 ```bash
-npm install
-cp .env.example .env
-# Настройте DATABASE_URL и NEXTAUTH_SECRET
-npx prisma db push
-npm run db:seed
-npm run dev
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
 ```
 
-Откройте [http://localhost:3000](http://localhost:3000)
+Или двойной клик: **Запуск бота.command**
 
-### Демо-аккаунты
+### 2. Админ-панель
 
-| Роль | Email | Пароль |
-|------|-------|--------|
-| Клиент | demo@pesdata.ru | demo123 |
-| Админ | admin@pesdata.ru | admin123 |
+```bash
+source venv/bin/activate
+python run_admin.py
+```
+
+Откройте: http://127.0.0.1:8000
+
+Логин/пароль — из `.env` (`ADMIN_LOGIN`, `ADMIN_PASSWORD`).
+
+## Этап 1 — /start
+
+- Новый пользователь → приветствие + кнопки (Выбрать пакет, Как работает, FAQ)
+- Вернувшийся с активным пакетом → статус пакета
+- Завершённый пакет → предложение купить новый
+
+Статусы: `new`, `active`, `finished`, `blocked`
+
+## Админ-панель
+
+| Раздел | Описание |
+|--------|----------|
+| Dashboard | KPI: пользователи, пакеты, оплаты, контакты |
+| Пользователи | Поиск, фильтры, карточка клиента |
+| Оплаты | Все платежи |
+| Заказы | Контроль пакетов |
+| Отправка контактов | Загрузка TXT/CSV/XLSX → отправка в Telegram |
+| Статистика | Продажи, популярные тарифы |
 
 ## Структура
 
-- `/` — лендинг
-- `/login`, `/register` — авторизация
-- `/dashboard` — личный кабинет
-- `/dashboard/leads` — лента номеров
-- `/admin` — панель администратора
+```
+handlers/start.py       — этап 1 пользовательского пути
+keyboards/              — inline-клавиатуры
+database/               — модели и SQLite
+services/               — бизнес-логика
+admin_web/              — FastAPI админка
+```
 
-## API
+## Демо-данные (для теста админки)
 
-- `POST /api/leads/incoming` — webhook для входящих лидов
-- `GET /api/leads` — список лидов с фильтрами
-- `POST /api/leads/fetch` — получить новые лиды
-- `GET/POST /api/projects` — управление проектами
-- `GET /api/stats` — статистика
+```bash
+python scripts/seed_demo.py
+```
 
-## Деплой на Vercel
+## Важно
 
-1. Подключите PostgreSQL (Neon, Supabase, Vercel Postgres)
-2. Установите переменные окружения: `DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
-3. Deploy через Vercel CLI или GitHub integration
-
-## Бренд
-
-- Тёмно-синий: `#1E1E3A`
-- Фиолетовый: `#5B5FC7`
-- Светлый фон: `#F4F4FC`
+- Бот и админка используют одну БД (`pes_data.db`)
+- При смене схемы удалите старый `pes_data.db` и перезапустите
+- Не запускайте несколько копий бота одновременно

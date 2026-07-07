@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% set active = 'stats' %}
+{% block title %}Статистика{% endblock %}
+{% block content %}
+<h2>Статистика</h2>
+<div class="grid">
+  <div class="card"><div class="stat-value">{{ stats.total_users }}</div><div class="stat-label">Пользователей</div></div>
+  <div class="card"><div class="stat-value">{{ stats.active_packages }}</div><div class="stat-label">Активных клиентов</div></div>
+  <div class="card"><div class="stat-value">{{ stats.total_contacts }}</div><div class="stat-label">Контактов отправлено</div></div>
+  <div class="card"><div class="stat-value">{{ stats.paid_orders }}</div><div class="stat-label">Оплат</div></div>
+</div>
+
+<h2 style="margin-top:24px">Продажи по дням (14 дней)</h2>
+<div class="card"><table>
+  <tr><th>День</th><th>Заказов</th><th>Сумма</th></tr>
+  {% for s in sales %}
+  <tr><td>{{ s.day }}</td><td>{{ s.count }}</td><td>{{ s.sum }} ₽</td></tr>
+  {% else %}<tr><td colspan="3">Нет данных</td></tr>{% endfor %}
+</table></div>
+
+<h2 style="margin-top:24px">Популярные тарифы</h2>
+<div class="card"><table>
+  <tr><th>Tariff ID</th><th>Заказов</th></tr>
+  {% for p in popular %}
+  <tr><td>{{ p[0] }}</td><td>{{ p[1] }}</td></tr>
+  {% else %}<tr><td colspan="2">Нет данных</td></tr>{% endfor %}
+</table></div>
+{% endblock %}
