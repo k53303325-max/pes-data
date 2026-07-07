@@ -30,6 +30,10 @@ from services.user_service import get_user_with_orders, order_remaining
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
+
+def render(request: Request, name: str, context: dict | None = None):
+    return templates.TemplateResponse(request, name, context or {})
+
 app = FastAPI(title="Пёс Дата Admin")
 
 _db_initialized = False
@@ -52,12 +56,12 @@ h1{color:#5B5FC7}ol{line-height:1.8}a{color:#7B7FE0}code{background:#ffffff15;pa
 <h1>🐶 Пёс Дата</h1>
 <p>Остался один шаг — подключить базу данных прямо в Vercel (без neon.tech):</p>
 <ol>
-<li>Откройте <a href="https://vercel.com/dashboard">Vercel Dashboard</a></li>
-<li>Проект <strong>pes-data</strong> → вкладка <strong>Storage</strong></li>
+<li>Откройте <a href="https://vercel.com/kates-projects-ad4765fe/pes-data/stores">Storage проекта pes-data</a></li>
 <li><strong>Create Database</strong> → <strong>Postgres</strong> → <strong>Continue</strong></li>
 <li>Выберите регион → <strong>Create</strong> → <strong>Connect to pes-data</strong></li>
-<li>Нажмите <strong>Redeploy</strong> в Deployments</li>
+<li>Нажмите <strong>Redeploy</strong> в <a href="https://vercel.com/kates-projects-ad4765fe/pes-data/deployments">Deployments</a></li>
 </ol>
+<p>Или из терминала: <code>./scripts/setup_vercel_postgres.sh</code></p>
 <p>После этого откройте <a href="/login">/login</a> — появится админка.</p>
 <p>Telegram-бот подключится автоматически через webhook.</p>
 </body></html>
@@ -144,7 +148,7 @@ def auth_guard(request: Request) -> RedirectResponse | None:
 async def login_page(request: Request):
     if is_authenticated(request):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return render(request, "login.html", {"error": None})
 
 
 @app.post("/login")
@@ -152,9 +156,7 @@ async def login_post(request: Request, username: str = Form(...), password: str 
     if check_credentials(username, password):
         login(request)
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(
-        "login.html", {"request": request, "error": "Неверный логин или пароль"}
-    )
+    return render(request, "login.html", {"error": "Неверный логин или пароль"})
 
 
 @app.get("/logout")
@@ -169,9 +171,7 @@ async def dashboard(request: Request):
         return redirect
     async with async_session() as session:
         stats = await dashboard_stats(session)
-    return templates.TemplateResponse(
-        "dashboard.html", {"request": request, "stats": stats, "labels": STATUS_LABELS}
-    )
+    return render(request, "dashboard.html", {"stats": stats, "labels": STATUS_LABELS})
 
 
 @app.get("/users", response_class=HTMLResponse)
@@ -180,9 +180,10 @@ async def users_page(request: Request, q: str = "", status: str = ""):
         return redirect
     async with async_session() as session:
         users = await list_users(session, q, status)
-    return templates.TemplateResponse(
+    return render(
+        request,
         "users.html",
-        {"request": request, "users": users, "q": q, "status": status, "labels": STATUS_LABELS},
+        {"users": users, "q": q, "status": status, "labels": STATUS_LABELS},
     )
 
 
@@ -201,10 +202,10 @@ async def user_detail(request: Request, user_id: int):
                 .order_by(ContactDelivery.created_at.desc())
             )
         ).scalars().all()
-    return templates.TemplateResponse(
+    return render(
+        request,
         "user_detail.html",
         {
-            "request": request,
             "user": user,
             "deliveries": deliveries,
             "labels": STATUS_LABELS,
@@ -226,9 +227,10 @@ async def payments_page(request: Request, status: str = ""):
         if status:
             stmt = stmt.where(Payment.status == status)
         payments = (await session.execute(stmt)).scalars().all()
-    return templates.TemplateResponse(
+    return render(
+        request,
         "payments.html",
-        {"request": request, "payments": payments, "status": status, "labels": STATUS_LABELS},
+        {"payments": payments, "status": status, "labels": STATUS_LABELS},
     )
 
 
@@ -245,10 +247,10 @@ async def orders_page(request: Request, status: str = ""):
         if status:
             stmt = stmt.where(Order.status == status)
         orders = (await session.execute(stmt)).scalars().all()
-    return templates.TemplateResponse(
+    return render(
+        request,
         "orders.html",
         {
-            "request": request,
             "orders": orders,
             "status": status,
             "labels": STATUS_LABELS,
@@ -279,10 +281,10 @@ async def delivery_page(request: Request, user_id: int = 0, msg: str = ""):
                     ),
                     None,
                 )
-    return templates.TemplateResponse(
+    return render(
+        request,
         "delivery.html",
         {
-            "request": request,
             "users": users,
             "selected_user": selected_user,
             "active_order": active_order,
@@ -307,10 +309,10 @@ async def delivery_preview_view(
         preview = await preview_delivery(session, order_id, phones)
         order = await session.get(Order, order_id)
         await session.refresh(order, ["tariff", "user"])
-    return templates.TemplateResponse(
+    return render(
+        request,
         "delivery_preview.html",
         {
-            "request": request,
             "preview": preview,
             "order": order,
             "phones_csv": ",".join(preview.phones),
@@ -361,6 +363,4 @@ async def stats_page(request: Request):
                 .order_by(func.count(Order.id).desc())
             )
         ).all()
-    return templates.TemplateResponse(
-        "stats.html", {"request": request, "stats": stats, "sales": sales, "popular": popular}
-    )
+    return render(request, "stats.html", {"stats": stats, "sales": sales, "popular": popular})
