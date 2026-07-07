@@ -28,3 +28,4 @@ logs/
 exports/
 .vercel
 .env.local
+.env*

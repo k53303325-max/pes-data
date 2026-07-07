@@ -43,7 +43,9 @@ def get_settings() -> Settings:
         app_url=get_app_url(),
         yookassa_shop_id=os.getenv("YOOKASSA_SHOP_ID", ""),
         yookassa_secret_key=os.getenv("YOOKASSA_SECRET_KEY", ""),
-        yookassa_return_url=os.getenv("YOOKASSA_RETURN_URL", "https://t.me/"),
+        yookassa_return_url=os.getenv(
+            "YOOKASSA_RETURN_URL", "https://t.me/Pesdata_bot"
+        ),
         webhook_host=os.getenv("WEBHOOK_HOST", "0.0.0.0"),
         webhook_port=int(os.getenv("WEBHOOK_PORT", "8080")),
         yookassa_webhook_path=os.getenv("YOOKASSA_WEBHOOK_PATH", "/yookassa/webhook"),

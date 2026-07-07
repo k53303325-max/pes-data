@@ -24,7 +24,8 @@ from database.models import (
 )
 from services.admin_stats_service import dashboard_stats, list_users, sales_by_day
 from services.delivery_service import commit_delivery, parse_contacts_file, preview_delivery
-from services.telegram_notify import notify_new_contacts
+from services.telegram_notify import notify_new_contacts, notify_payment_success
+from payments.yookassa import process_successful_payment
 from services.user_service import get_user_with_orders, order_remaining
 
 BASE = Path(__file__).resolve().parent
@@ -99,7 +100,7 @@ STATUS_LABELS = {
 @app.middleware("http")
 async def init_db_middleware(request: Request, call_next):
     if settings.is_vercel and not settings.database_url:
-        if request.url.path == "/webhook/telegram":
+        if request.url.path in ("/webhook/telegram", settings.yookassa_webhook_path):
             return HTMLResponse('{"ok":false,"error":"no db"}', status_code=503)
         return HTMLResponse(DB_SETUP_HTML, status_code=503)
     try:
@@ -127,6 +128,32 @@ async def telegram_webhook(request: Request):
     update = Update.model_validate(data, context={"bot": bot})
     await dp.feed_update(bot, update)
     return {"ok": True}
+
+
+@app.post(settings.yookassa_webhook_path)
+async def yookassa_webhook(request: Request):
+    """Webhook ЮKassa — подтверждение оплаты."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "invalid json"}
+
+    event = body.get("event")
+    obj = body.get("object", {})
+    payment_id = obj.get("id")
+    status = obj.get("status")
+
+    if event != "payment.succeeded" or status != "succeeded" or not payment_id:
+        return {"status": "ignored"}
+
+    async with async_session() as session:
+        result = await process_successful_payment(session, payment_id)
+
+    if result:
+        user, order = result
+        await notify_payment_success(user.telegram_id, order.tariff.name, order.contact_limit)
+
+    return {"status": "ok"}
 
 
 @app.get("/health")

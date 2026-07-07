@@ -20,15 +20,16 @@ from keyboards.start_keyboard import (
     finished_user_keyboard,
     welcome_keyboard,
 )
+from keyboards.payment_keyboard import tariffs_keyboard
 from services.messages import (
     ADD_COMPETITORS_STUB,
     BLOCKED_TEXT,
-    CHOOSE_PACKAGE_STUB,
     FAQ_TEXT,
     HOW_IT_WORKS_TEXT,
     MY_PACKAGE_STUB,
     WELCOME_TEXT,
 )
+from services.tariff_service import format_tariffs_list, get_all_tariffs
 from services.user_service import (
     get_active_order,
     get_user_by_telegram_id,
@@ -145,7 +146,15 @@ async def cb_faq(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.in_({CB_CHOOSE_PACKAGE, CB_BUY_NEW}))
 async def cb_choose_package(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(CHOOSE_PACKAGE_STUB, reply_markup=choose_package_keyboard())
+    async with async_session() as session:
+        tariffs = await get_all_tariffs(session)
+    if not tariffs:
+        await callback.answer("Тарифы временно недоступны", show_alert=True)
+        return
+    await callback.message.edit_text(
+        format_tariffs_list(tariffs),
+        reply_markup=tariffs_keyboard(tariffs),
+    )
     await callback.answer()
 
 

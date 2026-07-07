@@ -1,27 +1,25 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from yookassa import Configuration, Payment as YooPayment
 
 from config.settings import settings
-from db.models import Payment, PaymentStatus, User, UserStatus
+from database.models import Order, OrderStatus, Payment, PaymentStatus, Tariff, User, UserStatus
 from services.tariff_service import TariffInfo, get_tariff
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-Configuration.account_id = settings.yookassa_shop_id
-Configuration.secret_key = settings.yookassa_secret_key
-
 
 @dataclass
 class PaymentLink:
     payment_db_id: int
-    yookassa_id: str
+    external_id: str
     confirmation_url: str
     amount: int
 
@@ -30,13 +28,35 @@ def _yookassa_configured() -> bool:
     return bool(settings.yookassa_shop_id and settings.yookassa_secret_key)
 
 
+def _configure_yookassa() -> None:
+    from yookassa import Configuration
+
+    Configuration.account_id = settings.yookassa_shop_id
+    Configuration.secret_key = settings.yookassa_secret_key
+
+
 async def create_payment(
-    session: AsyncSession, user: User, tariff: TariffInfo, bot_username: str = "your_bot"
+    session: AsyncSession,
+    user: User,
+    tariff: TariffInfo,
+    bot_username: str = "Pesdata_bot",
 ) -> PaymentLink:
+    if user.status == UserStatus.BLOCKED.value:
+        raise ValueError("Аккаунт заблокирован")
+
+    active = await session.execute(
+        select(Order.id).where(
+            Order.user_id == user.id,
+            Order.status.in_([OrderStatus.ACTIVE.value, OrderStatus.IN_PROGRESS.value]),
+        ).limit(1)
+    )
+    if active.scalar_one_or_none():
+        raise ValueError("Сначала завершите текущий пакет")
+
     payment = Payment(
         user_id=user.id,
-        amount=tariff.price,
         tariff_id=tariff.id,
+        amount=tariff.price,
         status=PaymentStatus.PENDING.value,
     )
     session.add(payment)
@@ -45,101 +65,115 @@ async def create_payment(
 
     if not _yookassa_configured():
         mock_id = f"mock_{uuid.uuid4().hex[:16]}"
-        payment.payment_id = mock_id
+        payment.external_id = mock_id
         await session.commit()
-        logger.warning(
-            "YooKassa not configured — mock payment created: id=%s", mock_id
-        )
+        logger.warning("YooKassa not configured — mock payment id=%s", payment.id)
         return PaymentLink(
             payment_db_id=payment.id,
-            yookassa_id=mock_id,
+            external_id=mock_id,
             confirmation_url=f"https://t.me/{bot_username}?start=pay_{payment.id}",
             amount=tariff.price,
         )
 
-    idempotence_key = str(uuid.uuid4())
-    yoo_payment = YooPayment.create(
-        {
-            "amount": {"value": f"{tariff.price:.2f}", "currency": "RUB"},
-            "confirmation": {
-                "type": "redirect",
-                "return_url": settings.yookassa_return_url,
-            },
-            "capture": True,
-            "description": f"Пёс Дата — пакет «{tariff.name}» ({tariff.limit} контактов)",
-            "metadata": {
-                "payment_db_id": str(payment.id),
-                "user_id": str(user.user_id),
-                "tariff_id": str(tariff.id),
-            },
+    _configure_yookassa()
+    from yookassa import Payment as YooPayment
+
+    payload = {
+        "amount": {"value": f"{tariff.price:.2f}", "currency": "RUB"},
+        "confirmation": {
+            "type": "redirect",
+            "return_url": settings.yookassa_return_url,
         },
-        idempotence_key,
+        "capture": True,
+        "description": f"Пёс Дата — {tariff.name} ({tariff.contact_limit} контактов)",
+        "metadata": {
+            "payment_db_id": str(payment.id),
+            "user_telegram_id": str(user.telegram_id),
+            "tariff_id": str(tariff.id),
+        },
+    }
+
+    yoo_payment = await asyncio.to_thread(
+        YooPayment.create, payload, str(uuid.uuid4())
     )
 
-    payment.payment_id = yoo_payment.id
+    payment.external_id = yoo_payment.id
     await session.commit()
 
     logger.info(
-        "YooKassa payment created: yookassa_id=%s user_id=%s tariff_id=%s",
+        "YooKassa payment created: external_id=%s user=%s tariff=%s",
         yoo_payment.id,
-        user.user_id,
+        user.telegram_id,
         tariff.id,
     )
 
     return PaymentLink(
         payment_db_id=payment.id,
-        yookassa_id=yoo_payment.id,
+        external_id=yoo_payment.id,
         confirmation_url=yoo_payment.confirmation.confirmation_url,
         amount=tariff.price,
     )
 
 
 async def process_successful_payment(
-    session: AsyncSession, yookassa_payment_id: str
-) -> User | None:
+    session: AsyncSession, external_id: str
+) -> tuple[User, Order] | None:
     result = await session.execute(
-        select(Payment).where(Payment.payment_id == yookassa_payment_id)
+        select(Payment).where(Payment.external_id == external_id)
     )
     payment = result.scalar_one_or_none()
-
     if not payment:
-        logger.error("Payment not found: yookassa_id=%s", yookassa_payment_id)
+        logger.error("Payment not found: external_id=%s", external_id)
         return None
 
-    if payment.status == PaymentStatus.SUCCEEDED.value:
-        logger.info("Payment already processed: id=%s", payment.id)
+    if payment.status == PaymentStatus.PAID.value:
         user = await session.get(User, payment.user_id)
-        return user
+        order = await session.get(Order, payment.order_id) if payment.order_id else None
+        if user and order:
+            return user, order
+        return None
 
-    tariff = await get_tariff(session, payment.tariff_id)
-    if not tariff:
+    tariff_row = await session.get(Tariff, payment.tariff_id)
+    if not tariff_row:
         logger.error("Tariff not found for payment id=%s", payment.id)
         return None
 
-    payment.status = PaymentStatus.SUCCEEDED.value
     user = await session.get(User, payment.user_id)
     if not user:
         logger.error("User not found for payment id=%s", payment.id)
         return None
 
+    now = datetime.now(timezone.utc)
+    order = Order(
+        user_id=user.id,
+        tariff_id=tariff_row.id,
+        contact_limit=tariff_row.contact_limit,
+        status=OrderStatus.ACTIVE.value,
+        paid_at=now,
+    )
+    session.add(order)
+    await session.flush()
+
+    payment.status = PaymentStatus.PAID.value
+    payment.paid_at = now
+    payment.order_id = order.id
     user.status = UserStatus.ACTIVE.value
-    user.limit = tariff.limit
-    user.used = 0
+
     await session.commit()
     await session.refresh(user)
+    await session.refresh(order, ["tariff"])
 
     logger.info(
-        "Payment succeeded: yookassa_id=%s user_id=%s limit=%s",
-        yookassa_payment_id,
-        user.user_id,
-        tariff.limit,
+        "Payment succeeded: external_id=%s user=%s order=%s",
+        external_id,
+        user.telegram_id,
+        order.id,
     )
-    return user
+    return user, order
 
 
-async def confirm_mock_payment(session: AsyncSession, payment_db_id: int) -> User | None:
-    """Dev helper when YooKassa keys are not set."""
+async def confirm_mock_payment(session: AsyncSession, payment_db_id: int) -> tuple[User, Order] | None:
     payment = await session.get(Payment, payment_db_id)
-    if not payment or not payment.payment_id or not payment.payment_id.startswith("mock_"):
+    if not payment or not payment.external_id or not payment.external_id.startswith("mock_"):
         return None
-    return await process_successful_payment(session, payment.payment_id)
+    return await process_successful_payment(session, payment.external_id)
