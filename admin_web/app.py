@@ -46,8 +46,8 @@ async def _ensure_db() -> None:
 DB_SETUP_HTML = """
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
 <title>Пёс Дата — настройка</title>
-<style>body{{font-family:system-ui;max-width:560px;margin:60px auto;padding:0 20px;background:#1E1E3A;color:#F4F4FC}}
-h1{{color:#5B5FC7}}ol{{line-height:1.8}}a{{color:#7B7FE0}}code{{background:#ffffff15;padding:2px 6px;border-radius:4px}}</style></head>
+<style>body{font-family:system-ui;max-width:560px;margin:60px auto;padding:0 20px;background:#1E1E3A;color:#F4F4FC}
+h1{color:#5B5FC7}ol{line-height:1.8}a{color:#7B7FE0}code{background:#ffffff15;padding:2px 6px;border-radius:4px}</style></head>
 <body>
 <h1>🐶 Пёс Дата</h1>
 <p>Остался один шаг — подключить базу данных прямо в Vercel (без neon.tech):</p>
