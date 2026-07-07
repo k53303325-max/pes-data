@@ -71,7 +71,21 @@ STATUS_LABELS = {
 
 @app.middleware("http")
 async def init_db_middleware(request: Request, call_next):
-    await _ensure_db()
+    if settings.is_vercel and settings.database_url.startswith("sqlite"):
+        return HTMLResponse(
+            "<h1>БД не настроена</h1>"
+            "<p>Добавьте <code>DATABASE_URL</code> (PostgreSQL) в Vercel → Settings → Environment Variables</p>"
+            "<p>Бесплатно: <a href='https://neon.tech'>neon.tech</a></p>",
+            status_code=503,
+        )
+    try:
+        await _ensure_db()
+    except Exception as exc:
+        return HTMLResponse(
+            f"<h1>Ошибка подключения к БД</h1><pre>{exc}</pre>"
+            "<p>Проверьте DATABASE_URL в Vercel</p>",
+            status_code=503,
+        )
     return await call_next(request)
 
 
