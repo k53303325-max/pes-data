@@ -32,10 +32,15 @@ async def cb_select_tariff(callback: CallbackQuery) -> None:
             return
 
         try:
-            bot_username = callback.message.bot.username or "Pesdata_bot"
+            me = await callback.bot.get_me()
+            bot_username = me.username or "Pesdata_bot"
             link = await create_payment(session, user, tariff, bot_username)
         except ValueError as exc:
             await callback.answer(str(exc), show_alert=True)
+            return
+        except Exception as exc:
+            logger.exception("Payment creation failed")
+            await callback.answer("Ошибка создания платежа. Попробуйте позже.", show_alert=True)
             return
 
     text = (

@@ -7,7 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, ErrorEvent
 
 from config.settings import settings
-from handlers import payments, start
+from handlers import competitors, payments, start
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -45,6 +45,7 @@ def get_dispatcher() -> Dispatcher:
         _dp.errors.register(errors_handler)
         _dp.include_router(start.router)
         _dp.include_router(payments.router)
+        _dp.include_router(competitors.router)
     return _dp
 
 

@@ -8,7 +8,6 @@ from sqlalchemy import select
 from database.database import async_session
 from database.models import Order, User, UserStatus
 from keyboards.start_keyboard import (
-    CB_ADD_COMPETITORS,
     CB_BACK,
     CB_BUY_NEW,
     CB_CHOOSE_PACKAGE,
@@ -22,7 +21,6 @@ from keyboards.start_keyboard import (
 )
 from keyboards.payment_keyboard import tariffs_keyboard
 from services.messages import (
-    ADD_COMPETITORS_STUB,
     BLOCKED_TEXT,
     FAQ_TEXT,
     HOW_IT_WORKS_TEXT,
@@ -174,12 +172,6 @@ async def cb_my_package(callback: CallbackQuery) -> None:
             text = MY_PACKAGE_STUB
             kb = active_user_keyboard()
     await callback.message.edit_text(text, reply_markup=kb)
-    await callback.answer()
-
-
-@router.callback_query(F.data == CB_ADD_COMPETITORS)
-async def cb_add_competitors(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(ADD_COMPETITORS_STUB, reply_markup=active_user_keyboard())
     await callback.answer()
 
 

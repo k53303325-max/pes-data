@@ -11,7 +11,7 @@ from aiogram.types import BotCommand, ErrorEvent
 
 from config.settings import settings
 from database.database import init_db
-from handlers import payments, start
+from handlers import competitors, payments, start
 from utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -42,6 +42,7 @@ async def run_bot() -> None:
     dp.errors.register(errors_handler)
     dp.include_router(start.router)
     dp.include_router(payments.router)
+    dp.include_router(competitors.router)
 
     me = await bot.get_me()
     logger.info("Bot connected: @%s", me.username)

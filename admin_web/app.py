@@ -318,6 +318,7 @@ async def delivery_page(request: Request, user_id: int = 0, msg: str = ""):
             "user_id": user_id,
             "msg": msg,
             "order_remaining": order_remaining,
+            "labels": STATUS_LABELS,
         },
     )
 
