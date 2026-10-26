@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "env": {
+    "PROMO_TEST_CODE": "PESDATA100"
+  },
   "builds": [
     { "src": "api/index.py", "use": "@vercel/python" },
     { "src": "public/**", "use": "@vercel/static" }
