@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% set active = 'chats' %}
+{% block title %}Переписка — {{ user.first_name or user.username or user.telegram_id }}{% endblock %}
+{% block content %}
+<p style="margin-bottom:16px">
+  <a href="/chats">← Все переписки</a>
+  ·
+  <a href="/users/{{ user.id }}">Карточка клиента</a>
+</p>
+
+<div class="card hub-header">
+  <h2 style="margin-bottom:8px">💬 {{ user.first_name or 'Клиент' }} @{{ user.username or user.telegram_id }}</h2>
+  <p style="color:#999">Telegram ID: {{ user.telegram_id }} · Сообщений: {{ total }}</p>
+</div>
+
+<div class="card chat-thread">
+  {% for m in messages %}
+  <div class="chat-msg chat-msg-{{ m.direction }}">
+    <div class="chat-msg-meta">
+      {% if m.direction == 'in' %}
+      <span class="badge badge-in">Клиент</span>
+      {% else %}
+      <span class="badge badge-out">Бот</span>
+      {% endif %}
+      <span class="chat-msg-type">{{ m.message_type }}</span>
+      <span class="chat-msg-time">{{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '' }}</span>
+    </div>
+    <div class="chat-msg-body">{{ strip_html(m.content) }}</div>
+  </div>
+  {% else %}
+  <p style="color:#888;text-align:center;padding:32px 0">Сообщений пока нет. История начнёт сохраняться с новых сообщений.</p>
+  {% endfor %}
+</div>
+{% endblock %}

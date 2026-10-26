@@ -2,12 +2,29 @@ from __future__ import annotations
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, ErrorEvent
 
+from bot.chat_log_middleware import ChatLogMiddleware, OutgoingChatLogMiddleware
+
 from config.settings import settings
-from handlers import competitors, payments, start
+from services.messages import BOT_SYSTEM_ERROR_ALERT, BOT_SYSTEM_ERROR_TEXT
+from handlers import (
+    brief,
+    competitors,
+    faq,
+    menu,
+    orders,
+    package_payment,
+    packages,
+    payments,
+    profile,
+    project,
+    start,
+    tariffs,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -20,9 +37,12 @@ _webhook_ready = False
 def get_bot() -> Bot:
     global _bot
     if _bot is None:
+        session = AiohttpSession()
+        session.middleware(OutgoingChatLogMiddleware())
         _bot = Bot(
             token=settings.bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+            session=session,
         )
     return _bot
 
@@ -34,16 +54,49 @@ def get_dispatcher() -> Dispatcher:
 
         async def errors_handler(event: ErrorEvent) -> None:
             logger.exception("Bot error", exc_info=event.exception)
+            user_label = "—"
+            try:
+                if event.update.message and event.update.message.from_user:
+                    user_label = str(event.update.message.from_user.id)
+                elif event.update.callback_query and event.update.callback_query.from_user:
+                    user_label = str(event.update.callback_query.from_user.id)
+            except Exception:
+                pass
+            try:
+                from services.admin_notify_service import notify_admin_error
+
+                await notify_admin_error(
+                    event="bot_handler",
+                    user_label=user_label,
+                    error_message=str(event.exception),
+                )
+            except Exception:
+                pass
             try:
                 if event.update.message:
-                    await event.update.message.answer("⚠️ Ошибка. Нажмите /start")
+                    await event.update.message.answer(BOT_SYSTEM_ERROR_TEXT)
                 elif event.update.callback_query:
-                    await event.update.callback_query.answer("⚠️ Ошибка", show_alert=True)
+                    await event.update.callback_query.answer(
+                        BOT_SYSTEM_ERROR_ALERT,
+                        show_alert=True,
+                    )
             except Exception:
                 pass
 
         _dp.errors.register(errors_handler)
+        chat_log = ChatLogMiddleware()
+        _dp.message.middleware(chat_log)
+        _dp.callback_query.middleware(chat_log)
+        _dp.include_router(brief.router)
+        _dp.include_router(menu.router)
+        _dp.include_router(packages.router)
+        _dp.include_router(package_payment.router)
+        _dp.include_router(faq.router)
+        _dp.include_router(tariffs.router)
+        _dp.include_router(orders.router)
         _dp.include_router(payments.router)
+        _dp.include_router(profile.router)
+        _dp.include_router(project.router)
         _dp.include_router(competitors.router)
         _dp.include_router(start.router)
     return _dp
@@ -63,5 +116,20 @@ async def ensure_telegram_webhook() -> None:
 
     await bot.set_my_commands([
         BotCommand(command="start", description="Главное меню"),
+        BotCommand(command="profile", description="Мой пакет"),
     ])
+    try:
+        await bot.set_my_short_description(
+            "Контакты для телефонных продаж. Проверьте нишу: бизнес → конкуренты → подбор."
+        )
+        await bot.set_my_description(
+            "Пёс Дата помогает бизнесу проверить дополнительный источник контактов "
+            "для телефонных продаж.\n\n"
+            "Здесь можно узнать, как работает сервис, посмотреть пакеты и отправить "
+            "вводные для проверки своей ниши.\n\n"
+            "Контакт — это номер потенциального клиента. Его потребность и готовность "
+            "покупать проверяет ваш отдел продаж."
+        )
+    except Exception:
+        logger.exception("Failed to set bot profile text")
     _webhook_ready = True

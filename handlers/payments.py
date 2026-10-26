@@ -1,23 +1,18 @@
 from __future__ import annotations
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from database.database import async_session
-from keyboards.payment_keyboard import (
-    CB_MOCK_PAY_PREFIX,
-    CB_PAY_PREFIX,
-    CB_PROMO_PREFIX,
-    CB_TARIFF_PREFIX,
-    checkout_keyboard,
-    payment_keyboard,
-)
-from keyboards.start_keyboard import active_user_keyboard, back_keyboard
-from payments.yookassa import confirm_mock_payment, create_payment
-from services.promo_service import verify_test_promo
+from handlers.orders import handle_payment_success_callback, send_payment_success_message
+from keyboards.payment_keyboard import CB_MOCK_PAY_PREFIX, CB_PROMO_PKG_PREFIX, CB_PROMO_PREFIX
+from services.package_catalog import get_package
+from services.package_payment import resolve_package
+from keyboards.start_keyboard import CB_BACK, back_keyboard
+from services.messages import BOT_SYSTEM_ERROR_TEXT
+from services.promo_service import activate_promo_package, verify_test_promo
 from services.tariff_service import get_tariff
 from services.telegram_notify import notify_payment_success
 from services.user_service import get_user_by_telegram_id
@@ -26,61 +21,33 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 router = Router()
 
-PROMO_PRICE = 1
-
 
 class PromoState(StatesGroup):
     waiting_code = State()
 
 
-async def _bot_username(bot) -> str:
-    me = await bot.get_me()
-    return me.username or "Pesdata_bot"
-
-
-def _checkout_text(tariff, price: int, promo_applied: bool = False, *, mock: bool = False) -> str:
-    promo_line = "\n🎟 <b>Промокод применён — 1 ₽</b>\n" if promo_applied else ""
-    if mock:
-        pay_hint = (
-            "⚠️ <b>ЮKassa не настроена</b> — реальная оплата недоступна.\n"
-            "Для теста нажмите «Тест: активировать без оплаты».\n\n"
-            "Администратор: добавьте YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY в Vercel."
-        )
-    else:
-        pay_hint = (
-            "Нажмите «Перейти к оплате» — откроется страница ЮKassa.\n"
-            "После оплаты бот пришлёт подтверждение автоматически."
-        )
-    return (
-        f"💳 <b>Оплата пакета «{tariff.name}»</b>{promo_line}\n\n"
-        f"Сумма: <b>{price:,} ₽</b>\n".replace(",", " ")
-        + f"Контактов: <b>{tariff.contact_limit:,}</b>\n\n".replace(",", " ")
-        + pay_hint
+@router.callback_query(F.data.startswith(CB_PROMO_PKG_PREFIX))
+async def cb_promo_package(callback: CallbackQuery, state: FSMContext) -> None:
+    code = callback.data.removeprefix(CB_PROMO_PKG_PREFIX)
+    try:
+        pkg = resolve_package(code)
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+    await state.set_state(PromoState.waiting_code)
+    await state.update_data(
+        package_code=code,
+        tariff_id=pkg.tariff_id,
+        contact_limit=pkg.contact_count,
+        amount=pkg.price,
     )
-
-
-@router.callback_query(F.data.startswith(CB_TARIFF_PREFIX))
-async def cb_select_tariff(callback: CallbackQuery) -> None:
-    tariff_id = int(callback.data.removeprefix(CB_TARIFF_PREFIX))
-
-    async with async_session() as session:
-        tariff = await get_tariff(session, tariff_id)
-        if not tariff:
-            await callback.answer("Тариф не найден", show_alert=True)
-            return
-
     await callback.message.edit_text(
-        _checkout_text(tariff, tariff.price),
-        reply_markup=checkout_keyboard(tariff_id, tariff.price),
+        "🎟 <b>Промокод</b>\n\n"
+        "Введите промокод одним сообщением.\n"
+        f"Пакет: <b>{pkg.name}</b> · {pkg.contact_count} контактов",
+        reply_markup=back_keyboard(),
     )
     await callback.answer()
-
-
-@router.callback_query(F.data.startswith(CB_PAY_PREFIX))
-async def cb_pay_tariff(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.clear()
-    tariff_id = int(callback.data.removeprefix(CB_PAY_PREFIX))
-    await _start_payment(callback, tariff_id, amount=None, promo_applied=False)
 
 
 @router.callback_query(F.data.startswith(CB_PROMO_PREFIX))
@@ -96,21 +63,25 @@ async def cb_promo_tariff(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data.startswith(CB_MOCK_PAY_PREFIX))
-async def cb_mock_pay(callback: CallbackQuery) -> None:
-    payment_id = int(callback.data.removeprefix(CB_MOCK_PAY_PREFIX))
-    async with async_session() as session:
-        result = await confirm_mock_payment(session, payment_id)
-    if not result:
-        await callback.answer("Платёж не найден или уже обработан", show_alert=True)
-        return
-    user, order = result
-    await notify_payment_success(user.telegram_id, order.tariff.name, order.contact_limit)
-    await callback.message.edit_text(
-        f"✅ Тестовая активация!\nПакет «{order.tariff.name}» — {order.contact_limit} контактов.",
-        reply_markup=active_user_keyboard(),
-    )
+async def cb_mock_pay(callback: CallbackQuery, state: FSMContext) -> None:
+    from payments.yookassa import mock_payment_allowed
 
-    await callback.answer("Пакет активирован")
+    if not mock_payment_allowed():
+        await callback.answer("Тестовая оплата отключена", show_alert=True)
+        return
+
+    payment_id = int(callback.data.removeprefix(CB_MOCK_PAY_PREFIX))
+    await handle_payment_success_callback(callback, payment_id, state)
+
+
+@router.callback_query(F.data == CB_BACK, PromoState.waiting_code)
+async def cb_promo_back(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    await callback.message.edit_text(
+        "Ввод промокода отменён.\n\nНажмите /start или выберите пакет снова.",
+        reply_markup=back_keyboard(),
+    )
+    await callback.answer()
 
 
 @router.message(PromoState.waiting_code, F.text)
@@ -126,78 +97,54 @@ async def process_promo_code(message: Message, state: FSMContext) -> None:
         await message.answer("❌ Неверный промокод. Попробуйте ещё раз или нажмите «Назад».")
         return
 
+    contact_limit = data.get("contact_limit")
+    package_code = data.get("package_code")
+    if package_code and not contact_limit:
+        pkg = get_package(package_code)
+        if pkg and pkg.tariff_id:
+            contact_limit = pkg.contact_count
+            data["tariff_id"] = pkg.tariff_id
+            data["contact_limit"] = contact_limit
+    if not contact_limit:
+        await message.answer("Выберите пакет в «Пакеты и цены» и нажмите «Промокод».")
+        return
+
     await state.clear()
-    await message.answer("✅ Промокод принят! Создаю платёж на 1 ₽…")
 
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, message.from_user.id)
         tariff = await get_tariff(session, tariff_id)
         if not user or not tariff:
-            await message.answer("⚠️ Ошибка. Нажмите /start")
+            await message.answer(BOT_SYSTEM_ERROR_TEXT)
             return
         try:
-            username = await _bot_username(message.bot)
-            link = await create_payment(
-                session, user, tariff, username, amount=PROMO_PRICE
+            user, order = await activate_promo_package(
+                session,
+                user,
+                tariff,
+                contact_limit=contact_limit,
             )
         except ValueError as exc:
             await message.answer(f"❌ {exc}")
             return
-        except Exception:
-            logger.exception("Promo payment failed")
-            await message.answer("❌ Ошибка создания платежа")
+        except Exception as exc:
+            logger.exception("Promo activation failed")
+            from services.admin_notify_service import notify_admin_error
+
+            await notify_admin_error(
+                event="promo_activation",
+                user_label=str(message.from_user.id),
+                error_message=str(exc),
+            )
+            await message.answer(BOT_SYSTEM_ERROR_TEXT)
             return
 
-    await message.answer(
-        _checkout_text(tariff, PROMO_PRICE, promo_applied=True, mock=link.is_mock),
-        reply_markup=payment_keyboard(link),
+    await notify_payment_success(user.telegram_id, order.contact_limit)
+    await send_payment_success_message(
+        message,
+        order,
+        state,
+        user_db_id=user.id,
     )
 
 
-async def _start_payment(
-    callback: CallbackQuery,
-    tariff_id: int,
-    amount: int | None,
-    promo_applied: bool,
-) -> None:
-    async with async_session() as session:
-        user = await get_user_by_telegram_id(session, callback.from_user.id)
-        if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
-            return
-
-        tariff = await get_tariff(session, tariff_id)
-        if not tariff:
-            await callback.answer("Тариф не найден", show_alert=True)
-            return
-
-        try:
-            username = await _bot_username(callback.bot)
-            link = await create_payment(session, user, tariff, username, amount=amount)
-        except ValueError as exc:
-            await callback.answer(str(exc), show_alert=True)
-            return
-        except Exception:
-            logger.exception("Payment creation failed")
-            await callback.answer("Ошибка создания платежа", show_alert=True)
-            return
-
-    price = amount if amount is not None else tariff.price
-    await callback.message.edit_text(
-        _checkout_text(tariff, price, promo_applied=promo_applied, mock=link.is_mock),
-        reply_markup=payment_keyboard(link),
-    )
-    await callback.answer()
-
-
-@router.message(CommandStart(deep_link=True))
-async def cmd_start_deeplink(message: Message) -> None:
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        return
-
-    if args[1] == "payment_ok":
-        await message.answer(
-            "✅ Спасибо! Если оплата прошла — бот пришлёт подтверждение в течение минуты.\n"
-            "Если сообщения нет — напишите /start"
-        )

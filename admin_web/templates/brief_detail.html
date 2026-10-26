@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% set active = 'briefs' %}
+{% block title %}{{ brief.request_code }} — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Обращение {{ brief.request_code }}</h2>
+{% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
+<div class="card">
+  <p><b>Статус:</b> {{ brief_labels.get(brief.status, brief.status) }}</p>
+  <p><b>Источник:</b> {{ brief.source or '—' }}</p>
+  <p><b>Триал:</b> {{ 'да' if brief.is_trial else 'нет' }}</p>
+  <p><b>Пакет (код):</b> {{ brief.package_code or '—' }}</p>
+  <p><b>Бизнес:</b><br>{{ brief.business_text or '—' }}</p>
+  <p><b>Обработка контактов:</b> {{ sales_label }}</p>
+  <p><b>Конкуренты:</b><br><pre style="white-space:pre-wrap">{{ competitors_text }}</pre></p>
+  <p><b>ИНН:</b>
+    {% if brief.inn %}{{ brief.inn }}
+    {% elif brief.inn_manual_review %}ручная проверка: {{ brief.inn_manual_details or '—' }}
+    {% else %}—{% endif %}
+  </p>
+  <p><b>Отправлено:</b> {{ brief.submitted_at or '—' }}</p>
+  <p><a href="/users/{{ brief.user_id }}">Карточка клиента</a> ·
+     <a href="/users/{{ brief.user_id }}/chat">Переписка</a></p>
+</div>
+
+{% if trials %}
+<h3 style="margin-top:24px">Триал по этому клиенту</h3>
+<div class="card">
+  {% for t in trials %}
+  <form method="post" action="/trials/{{ t.id }}/status" style="margin-bottom:16px">
+    <input type="hidden" name="next" value="/briefs/{{ brief.id }}">
+    <p><b>ИНН:</b> {{ t.inn }} · <b>Telegram:</b> {{ t.telegram_id }}</p>
+    <label>Статус триала
+      <select name="status">
+        {% for key, label in trial_labels.items() %}
+        <option value="{{ key }}" {% if t.status == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn btn-small" type="submit">Сохранить</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+<p><a href="/briefs">← К списку</a></p>
+{% endblock %}

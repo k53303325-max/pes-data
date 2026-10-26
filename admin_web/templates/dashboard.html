@@ -12,4 +12,13 @@
   <div class="card"><div class="stat-value">{{ "{:,}".format(stats.total_revenue).replace(",", " ") }} ₽</div><div class="stat-label">Сумма оплат</div></div>
   <div class="card"><div class="stat-value">{{ stats.total_contacts }}</div><div class="stat-label">Отправлено контактов</div></div>
 </div>
+
+<h2 style="margin-top:32px">Последние действия</h2>
+<div class="card">
+  {% for entry in recent_activities %}
+  <p style="margin-bottom:14px;white-space:pre-line">{{ format_activity_line(entry, entry.project.project_name if entry.project else None) }}</p>
+  {% else %}
+  <p>Действий пока нет.</p>
+  {% endfor %}
+</div>
 {% endblock %}

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% set active = 'users' %}
-{% block title %}Пользователи{% endblock %}
+{% block title %}Клиенты{% endblock %}
 {% block content %}
-<h2>Пользователи</h2>
+<h2>Клиенты</h2>
+<p style="color:#888;margin-bottom:16px">Единая карточка: пользователь, проекты, оплаты и удаление</p>
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
 <form class="filters card" method="get">
   <input name="q" value="{{ q }}" placeholder="Username или Telegram ID">
   <select name="status">
@@ -15,18 +17,25 @@
 </form>
 <div class="card">
 <table>
-  <tr><th>Telegram ID</th><th>Username</th><th>Имя</th><th>Регистрация</th><th>Статус</th><th></th></tr>
+  <tr>
+    <th>Клиент</th><th>Telegram ID</th><th>Проектов</th><th>Оплат</th><th>Статус</th><th>Регистрация</th><th></th>
+  </tr>
   {% for u in users %}
   <tr>
+    <td>
+      <strong>{{ u.first_name or '—' }}</strong><br>
+      @{{ u.username or '—' }}
+    </td>
     <td>{{ u.telegram_id }}</td>
-    <td>@{{ u.username or '—' }}</td>
-    <td>{{ u.first_name or '—' }}</td>
-    <td>{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+    <td>{{ u.projects|length if u.projects else 0 }}</td>
+    <td>{{ u.payments|length if u.payments else 0 }}</td>
     <td><span class="badge">{{ labels.get(u.status, u.status) }}</span></td>
-    <td><a href="/users/{{ u.id }}">Открыть</a></td>
+    <td>{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+    <td><a class="btn btn-secondary" href="/users/{{ u.id }}" style="padding:6px 12px;font-size:13px">Карточка</a>
+      <a class="btn btn-secondary" href="/users/{{ u.id }}/chat" style="padding:6px 12px;font-size:13px;margin-left:4px">💬</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="6">Пользователей нет</td></tr>
+  <tr><td colspan="7">Пользователей нет</td></tr>
   {% endfor %}
 </table>
 </div>

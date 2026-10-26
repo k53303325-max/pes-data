@@ -45,3 +45,10 @@ def get_app_url() -> str:
     if vercel_url:
         return f"https://{vercel_url}"
     return os.getenv("APP_URL", "http://127.0.0.1:8000")
+
+
+def resolve_yookassa_return_url() -> str:
+    configured = os.getenv("YOOKASSA_RETURN_URL", "").strip()
+    if configured and "your_bot" not in configured:
+        return configured
+    return "https://t.me/Pesdata_bot?start=payment_ok"

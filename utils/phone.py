@@ -51,8 +51,15 @@ def normalize_phone(raw: str, default_region: str = "RU") -> str | None:
 
 def extract_phones(text: str) -> list[str]:
     """Parse and deduplicate phones from multiline/comma-separated text."""
+    phones, _invalid = extract_phones_with_stats(text)
+    return phones
+
+
+def extract_phones_with_stats(text: str) -> tuple[list[str], int]:
+    """Parse phones; return (valid unique list, invalid line count)."""
     seen: set[str] = set()
     result: list[str] = []
+    invalid = 0
 
     candidates = list(PHONE_SPLIT_RE.split(text))
     candidates.extend(PHONE_FIND_RE.findall(text))
@@ -62,11 +69,14 @@ def extract_phones(text: str) -> list[str]:
         if not part:
             continue
         normalized = normalize_phone(part)
-        if normalized and normalized not in seen:
-            seen.add(normalized)
-            result.append(normalized)
+        if normalized:
+            if normalized not in seen:
+                seen.add(normalized)
+                result.append(normalized)
+        elif any(ch.isdigit() for ch in part):
+            invalid += 1
 
-    return result
+    return result, invalid
 
 
 class RateLimiter:

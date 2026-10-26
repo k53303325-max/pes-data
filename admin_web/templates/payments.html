@@ -3,6 +3,7 @@
 {% block title %}Оплаты{% endblock %}
 {% block content %}
 <h2>Оплаты</h2>
+{% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
 <form class="filters card" method="get">
   <select name="status">
     <option value="">Все</option>
@@ -12,17 +13,28 @@
   </select>
   <button class="btn" type="submit">Фильтр</button>
 </form>
+<form class="filters card" method="post" action="/payments/sync-pending">
+  <button class="btn btn-secondary" type="submit">Синхронизировать pending с ЮKassa</button>
+</form>
 <div class="card"><table>
-  <tr><th>Пользователь</th><th>Тариф</th><th>Сумма</th><th>Создан</th><th>Оплачен</th><th>Статус</th></tr>
+  <tr><th>Пользователь</th><th>Контактов</th><th>Тариф</th><th>Сумма</th><th>Создан</th><th>Оплачен</th><th>Статус</th><th></th></tr>
   {% for p in payments %}
   <tr>
     <td><a href="/users/{{ p.user.id }}">@{{ p.user.username or p.user.telegram_id }}</a></td>
+    <td>{{ p.contact_limit or (p.tariff.contact_limit if p.tariff else '—') }}</td>
     <td>{{ p.tariff.name if p.tariff else p.tariff_id }}</td>
     <td>{{ p.amount }} ₽</td>
     <td>{{ p.created_at.strftime('%d.%m.%Y') if p.created_at else '—' }}</td>
     <td>{{ p.paid_at.strftime('%d.%m.%Y') if p.paid_at else '—' }}</td>
     <td><span class="badge">{{ labels.get(p.status, p.status) }}</span></td>
+    <td>
+      {% if p.status == 'pending' and p.external_id %}
+      <form method="post" action="/payments/{{ p.id }}/sync">
+        <button class="btn btn-small" type="submit">Проверить в ЮKassa</button>
+      </form>
+      {% endif %}
+    </td>
   </tr>
-  {% else %}<tr><td colspan="6">Нет платежей</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8">Нет платежей</td></tr>{% endfor %}
 </table></div>
 {% endblock %}

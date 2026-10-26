@@ -4,17 +4,35 @@ import os
 
 from dotenv import load_dotenv
 
-from config.db_url import get_app_url, resolve_database_url
+from config.db_url import get_app_url, resolve_database_url, resolve_yookassa_return_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
 
+def _clean_env(value: str | None) -> str:
+    if not value:
+        return ""
+    return value.strip().strip('"').strip("'")
+
+
+def _parse_admin_settings() -> tuple[int, str]:
+    admin_id_raw = _clean_env(os.getenv("ADMIN_ID", "0")) or "0"
+    admin_username = _clean_env(os.getenv("ADMIN_USERNAME", "")).lstrip("@")
+    try:
+        return int(admin_id_raw), admin_username
+    except ValueError:
+        if not admin_username:
+            admin_username = admin_id_raw.lstrip("@")
+        return 0, admin_username
+
+
 @dataclass(frozen=True)
 class Settings:
     bot_token: str
     admin_telegram_id: int
+    admin_username: str
     database_url: str
     app_url: str
     yookassa_shop_id: str
@@ -34,19 +52,20 @@ class Settings:
     admin_port: int
     is_vercel: bool
     promo_test_code: str
+    allow_mock_payment: bool
 
 
 def get_settings() -> Settings:
+    admin_telegram_id, admin_username = _parse_admin_settings()
     return Settings(
-        bot_token=os.getenv("BOT_TOKEN", ""),
-        admin_telegram_id=int(os.getenv("ADMIN_ID", "0")),
+        bot_token=_clean_env(os.getenv("BOT_TOKEN")),
+        admin_telegram_id=admin_telegram_id,
+        admin_username=admin_username,
         database_url=resolve_database_url(),
         app_url=get_app_url(),
-        yookassa_shop_id=os.getenv("YOOKASSA_SHOP_ID", ""),
-        yookassa_secret_key=os.getenv("YOOKASSA_SECRET_KEY", ""),
-        yookassa_return_url=os.getenv(
-            "YOOKASSA_RETURN_URL", "https://t.me/Pesdata_bot?start=payment_ok"
-        ),
+        yookassa_shop_id=_clean_env(os.getenv("YOOKASSA_SHOP_ID")),
+        yookassa_secret_key=_clean_env(os.getenv("YOOKASSA_SECRET_KEY")),
+        yookassa_return_url=resolve_yookassa_return_url(),
         webhook_host=os.getenv("WEBHOOK_HOST", "0.0.0.0"),
         webhook_port=int(os.getenv("WEBHOOK_PORT", "8080")),
         yookassa_webhook_path=os.getenv("YOOKASSA_WEBHOOK_PATH", "/yookassa/webhook"),
@@ -62,7 +81,10 @@ def get_settings() -> Settings:
         is_vercel=os.getenv("VERCEL") == "1",
         promo_test_code=os.getenv(
             "PROMO_TEST_CODE",
-            "PES.DATA-7k9Qm-zX2$TEST-1RUB-v3",
+            "PESDATA100",
+        ),
+        allow_mock_payment=(
+            os.getenv("ALLOW_MOCK_PAYMENT") == "1" and os.getenv("VERCEL") != "1"
         ),
     )
 

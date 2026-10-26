@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% set active = 'delivery_history' %}
+{% block title %}История выдач{% endblock %}
+{% block content %}
+<h2>История выдач</h2>
+<div class="card"><table>
+  <tr>
+    <th>#</th>
+    <th>Пользователь</th>
+    <th>Дата</th>
+    <th>Способ</th>
+    <th>Контактов</th>
+    <th>Файл</th>
+    <th>Администратор</th>
+    <th>Список</th>
+  </tr>
+  {% for d in deliveries %}
+  <tr>
+    <td>{{ d.id }}</td>
+    <td>
+      <a href="/users/{{ d.user_id }}">
+        {{ d.user.first_name or d.user.username or d.user.telegram_id }}
+      </a>
+    </td>
+    <td>{{ d.created_at.strftime('%d.%m.%Y %H:%M') if d.created_at else '—' }}</td>
+    <td>{{ delivery_type_label(d.delivery_type) }}</td>
+    <td>{{ d.contacts_count }}</td>
+    <td>
+      {% if d.file_name %}
+        {% if d.file_data %}
+          <a href="/deliveries/{{ d.id }}/download">{{ d.file_name }}</a>
+        {% else %}
+          {{ d.file_name }}
+        {% endif %}
+      {% else %}—{% endif %}
+    </td>
+    <td>{{ d.admin_id or '—' }}</td>
+    <td>
+      {% if d.delivery_type == 'message' and d.contacts_text %}
+        <details><summary>Показать</summary><pre style="white-space:pre-wrap">{{ d.contacts_text[:2000] }}</pre></details>
+      {% elif d.file_path and d.file_data %}
+        <a href="/deliveries/{{ d.id }}/download">Скачать</a>
+      {% else %}—{% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8">Нет выдач</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

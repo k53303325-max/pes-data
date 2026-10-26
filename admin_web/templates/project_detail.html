@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% set active = 'projects' %}
+{% block title %}{{ project.project_name or 'Проект' }}{% endblock %}
+{% block content %}
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
+
+<h2>{{ project.project_name or '— без названия —' }}</h2>
+<p><a href="/projects">← Все проекты</a></p>
+
+<div class="card">
+  <h3>Основная информация</h3>
+  <p><strong>Название проекта:</strong> {{ project.project_name or '—' }}</p>
+  <p><strong>Клиент:</strong> {{ project.user.first_name or '—' }}</p>
+  <p><strong>Telegram:</strong> @{{ project.user.username or '—' }}</p>
+  <p><strong>Telegram ID:</strong> {{ project.user.telegram_id }}</p>
+  <p><strong>Дата создания:</strong> {{ project.created_at.strftime('%d.%m.%Y %H:%M') if project.created_at else '—' }}</p>
+</div>
+
+<div class="card">
+  <h3>Пакет</h3>
+  <p><strong>Текущий пакет:</strong> {{ project.order.tariff.name if project.order.tariff else '—' }}</p>
+  <p><strong>Стоимость:</strong> {{ format_project_price(price) }}</p>
+  <p><strong>Лимит:</strong> {{ project.order.contact_limit }}</p>
+  <p><strong>Получено:</strong> {{ project.order.received }}</p>
+  <p><strong>Осталось:</strong> {{ order_remaining(project.order) }}</p>
+  <p><strong>Статус:</strong> {{ labels.get(project.order.status, project.order.status) }}</p>
+</div>
+
+<div class="card">
+  <h3>📤 Отправить контакты</h3>
+  {% if project.order.status in ['active', 'in_progress'] %}
+    {% if not mode %}
+    <p>
+      <a class="btn" href="/projects/{{ project.id }}?mode=message">💬 Сообщением</a>
+      <a class="btn btn-secondary" href="/projects/{{ project.id }}?mode=file" style="margin-left:8px">📎 Файлом</a>
+    </p>
+    {% elif mode == 'message' %}
+    <form method="post" action="/delivery/preview">
+      <input type="hidden" name="order_id" value="{{ project.order.id }}">
+      <input type="hidden" name="delivery_type" value="message">
+      <textarea name="phones_text" rows="10" placeholder="79991234567&#10;79997654321" style="width:100%;background:#1a1a2e;color:#eee;border:1px solid #333;border-radius:8px;padding:10px;font-family:monospace"></textarea>
+      <button class="btn" type="submit" style="margin-top:12px">Проверить</button>
+    </form>
+    {% elif mode == 'file' %}
+    <form method="post" action="/delivery/preview" enctype="multipart/form-data">
+      <input type="hidden" name="order_id" value="{{ project.order.id }}">
+      <input type="hidden" name="delivery_type" value="file">
+      <input type="file" name="file" accept=".txt,.csv,.xlsx" required>
+      <button class="btn" type="submit" style="margin-top:12px">Загрузить и проверить</button>
+    </form>
+    {% endif %}
+  {% else %}
+  <p>Пакет завершён — отправка недоступна.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Отслеживаемые номера</h3>
+  <p><strong>Всего номеров:</strong> {{ competitors|length }}</p>
+  <table>
+    <tr><th>Номер</th><th>Добавлен</th><th>Кто добавил</th><th>Статус</th></tr>
+    {% for c in competitors %}
+    <tr>
+      <td><code>{{ c.phone }}</code></td>
+      <td>{{ c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '—' }}</td>
+      <td>{{ c.added_by }}</td>
+      <td>{{ labels.get(c.status, c.status) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">Нет номеров</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>Выданные контакты</h3>
+  {% for d in deliveries %}
+  <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08)">
+    <p><strong>Дата:</strong> {{ d.created_at.strftime('%d.%m.%Y %H:%M') if d.created_at else '—' }}</p>
+    <p><strong>Количество:</strong> {{ d.contacts_count }} контактов</p>
+    <p><strong>Способ:</strong> {{ delivery_type_label(d.delivery_type) }}</p>
+    {% if d.delivery_type == 'message' and d.contacts_text %}
+    <p><strong>Контакты:</strong></p>
+    <pre style="white-space:pre-wrap;font-size:13px">{{ d.contacts_text[:3000] }}</pre>
+    {% endif %}
+    {% if d.file_name %}
+    <p><strong>Файл:</strong>
+      {% if d.file_data %}<a href="/deliveries/{{ d.id }}/download">{{ d.file_name }}</a>{% else %}{{ d.file_name }}{% endif %}
+    </p>
+    {% endif %}
+  </div>
+  {% else %}
+  <p>Выдач пока нет.</p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h3>Журнал действий</h3>
+  {% for a in activities %}
+  <p style="margin-bottom:12px">
+    <strong>{{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '—' }}</strong><br>
+    {{ a.description }}
+  </p>
+  {% else %}
+  <p>Записей пока нет.</p>
+  {% endfor %}
+</div>
+{% endblock %}

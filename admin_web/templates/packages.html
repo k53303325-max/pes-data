@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set active = 'packages' %}
+{% block title %}Пакеты — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Пакеты (каталог бота)</h2>
+<p style="color:#666;margin-bottom:16px">
+  Цены и объёмы задаются в коде (<code>services/package_catalog.py</code>).
+  Таблица тарифов ниже используется для оплат и заказов в БД.
+</p>
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Код</th><th>Название</th><th>Контакты</th><th>Цена</th><th>tariff_id</th></tr>
+    </thead>
+    <tbody>
+      {% for p in catalog %}
+      <tr>
+        <td>{{ p.code }}</td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.contact_count }}</td>
+        <td>{{ p.price }} ₽</td>
+        <td>{{ p.tariff_id or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<h3 style="margin-top:24px">Тарифы в БД</h3>
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>ID</th><th>Название</th><th>Контакты</th><th>Цена</th><th>Активен</th></tr>
+    </thead>
+    <tbody>
+      {% for t in tariffs %}
+      <tr>
+        <td>{{ t.id }}</td>
+        <td>{{ t.emoji }} {{ t.name }}</td>
+        <td>{{ t.contact_limit }}</td>
+        <td>{{ t.price }} ₽</td>
+        <td>{{ 'да' if t.is_active else 'нет' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

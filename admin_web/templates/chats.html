@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set active = 'chats' %}
+{% block title %}Переписка{% endblock %}
+{% block content %}
+<h2>Переписка с клиентами</h2>
+<p style="color:#888;margin-bottom:16px">История сообщений бота с пользователями. Новые сообщения сохраняются автоматически.</p>
+<form class="filters card" method="get">
+  <input name="q" value="{{ q }}" placeholder="Username, имя или Telegram ID">
+  <button class="btn" type="submit">Найти</button>
+</form>
+<div class="card">
+<table>
+  <tr>
+    <th>Клиент</th><th>Последнее сообщение</th><th>Направление</th><th>Дата</th><th></th>
+  </tr>
+  {% for item in chats %}
+  {% set u = item.user %}
+  {% set m = item.last_message %}
+  <tr>
+    <td>
+      <strong>{{ u.first_name or '—' }}</strong><br>
+      @{{ u.username or u.telegram_id }}
+    </td>
+    <td style="max-width:420px;color:#ccc">{{ item.preview }}</td>
+    <td>
+      {% if m.direction == 'in' %}
+      <span class="badge badge-in">Клиент</span>
+      {% else %}
+      <span class="badge badge-out">Бот</span>
+      {% endif %}
+    </td>
+    <td>{{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '—' }}</td>
+    <td><a class="btn btn-secondary" href="/users/{{ u.id }}/chat" style="padding:6px 12px;font-size:13px">Открыть</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5">Переписки пока нет — сообщения начнут сохраняться после деплоя</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

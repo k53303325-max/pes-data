@@ -4,26 +4,46 @@
 {% block content %}
 <h2>Подтверждение отправки</h2>
 <div class="card">
-  <p><strong>Пользователь:</strong> {{ order.user.first_name or order.user.username }}</p>
-  <p><strong>Пакет:</strong> {{ order.tariff.name }} ({{ order.contact_limit }} конт.)</p>
-  <p><strong>Остаток пакета:</strong> {{ order_remaining(order) }}</p>
-  <hr style="border-color:rgba(255,255,255,.1);margin:16px 0">
-  <p>📋 Найдено номеров: <strong>{{ total_raw }}</strong></p>
-  <p>✅ К отправке: <strong>{{ preview.can_send }}</strong></p>
-  <p>⚠️ Дубликаты: {{ preview.duplicates }}</p>
-  <p>🚫 Невалидных / сверх лимита: {{ preview.invalid + preview.skipped_limit }}</p>
+  {% if project %}
+  <p><strong>Проект:</strong> {{ project.project_name or '— без названия —' }}</p>
+  {% endif %}
+  <p><strong>Пользователь:</strong> {{ order.user.first_name or order.user.username or order.user.telegram_id }}</p>
+  <p><strong>Пакет:</strong> {{ order.tariff.name }} ({{ preview.limit }} контактов)</p>
+  <p><strong>Получено:</strong> {{ preview.received }} / {{ preview.limit }}</p>
+  <p><strong>Осталось:</strong> {{ preview.remaining }}</p>
+  <p><strong>Будет отправлено:</strong> {{ preview.will_send }}</p>
+  <p><strong>После отправки:</strong> {{ preview.after_received }} / {{ preview.limit }}</p>
 
-  {% if preview.can_send > 0 %}
+  {% if preview.duplicates %}
+  <p style="color:#fbbf24">⚠️ Пропущено дубликатов (уже выдавались): {{ preview.duplicates }}</p>
+  {% endif %}
+  {% if invalid %}
+  <p style="color:#fbbf24">⚠️ Некорректных номеров: {{ invalid }}</p>
+  {% endif %}
+  {% if preview.skipped_limit %}
+  <p style="color:#f87171">
+    ⚠️ Превышен остаток пакета. Будет отправлено только {{ preview.will_send }} из
+    {{ preview.will_send + preview.skipped_limit }} новых контактов.
+  </p>
+  {% endif %}
+
+  {% if preview.will_send > 0 %}
   <form method="post" action="/delivery/send" style="margin-top:20px">
     <input type="hidden" name="order_id" value="{{ order.id }}">
-    <input type="hidden" name="phones_csv" value="{{ phones_csv }}">
+    <input type="hidden" name="delivery_type" value="{{ delivery_type }}">
+    <input type="hidden" name="phones_b64" value="{{ phones_b64 }}">
+    <input type="hidden" name="file_b64" value="{{ file_b64 }}">
+    <input type="hidden" name="file_name" value="{{ file_name }}">
     <label>Комментарий (необязательно)</label>
     <input name="note" placeholder="Заметка администратора">
-    <button class="btn" type="submit">Отправить {{ preview.can_send }} контактов</button>
-    <a class="btn btn-secondary" href="/delivery?user_id={{ order.user.id }}" style="margin-left:8px">Отмена</a>
+    <div style="margin-top:16px">
+      <button class="btn" type="submit">✅ Отправить</button>
+      <a class="btn btn-secondary" href="{% if project %}/projects/{{ project.id }}{% else %}/delivery?user_id={{ order.user.id }}{% endif %}" style="margin-left:8px">❌ Отмена</a>
+    </div>
   </form>
   {% else %}
   <p style="margin-top:16px;color:#f87171">Нет контактов для отправки.</p>
+  <a class="btn btn-secondary" href="/delivery?user_id={{ order.user.id }}">Назад</a>
   {% endif %}
 </div>
 {% endblock %}

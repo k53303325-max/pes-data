@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% set active = 'admin_notifications' %}
+{% block title %}Уведомления администратора{% endblock %}
+{% block content %}
+<h2>Уведомления администратора</h2>
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
+
+{% if cfg %}
+<div class="card">
+  <form method="post" action="/admin/notifications/save">
+    <input type="hidden" name="cfg_id" value="{{ cfg.id }}">
+
+    <label>Telegram ID администратора</label>
+    <input name="telegram_id" type="number" value="{{ cfg.telegram_id }}" required style="width:100%;margin-bottom:16px">
+
+    <p style="color:#888;margin-bottom:12px">Env ADMIN_ID: {{ env_admin_id or 'не задан' }}</p>
+
+    <h3 style="margin-top:20px">Типы уведомлений</h3>
+    <label><input type="checkbox" name="new_registration_enabled" value="1" {% if cfg.new_registration_enabled %}checked{% endif %}> 🐶 Новая регистрация</label><br>
+    <label><input type="checkbox" name="new_project_enabled" value="1" {% if cfg.new_project_enabled %}checked{% endif %}> 🏢 Новый проект</label><br>
+    <label><input type="checkbox" name="payment_enabled" value="1" {% if cfg.payment_enabled %}checked{% endif %}> 💰 Оплата</label><br>
+    <label><input type="checkbox" name="competitor_added_enabled" value="1" {% if cfg.competitor_added_enabled %}checked{% endif %}> 📱 Номера конкурентов</label><br>
+    <label><input type="checkbox" name="package_completed_enabled" value="1" {% if cfg.package_completed_enabled %}checked{% endif %}> 🎉 Завершение пакета</label><br>
+    <label><input type="checkbox" name="error_enabled" value="1" {% if cfg.error_enabled %}checked{% endif %}> ⚠️ Ошибки системы</label><br>
+
+    <button class="btn" type="submit" style="margin-top:20px">Сохранить</button>
+  </form>
+
+  <form method="post" action="/admin/notifications/daily-report" style="margin-top:16px">
+    <button class="btn btn-secondary" type="submit">🐶 Отправить отчёт за день</button>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <p>Задайте <code>ADMIN_ID</code> в переменных окружения Vercel и перезапустите приложение.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
+from aiogram.filters.command import CommandObject
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
 
@@ -9,25 +11,16 @@ from database.database import async_session
 from database.models import Order, User, UserStatus
 from keyboards.start_keyboard import (
     CB_BACK,
-    CB_BUY_NEW,
-    CB_CHOOSE_PACKAGE,
-    CB_FAQ,
-    CB_HOW_IT_WORKS,
-    CB_MY_PACKAGE,
     active_user_keyboard,
-    choose_package_keyboard,
     finished_user_keyboard,
     welcome_keyboard,
 )
-from keyboards.payment_keyboard import tariffs_keyboard
 from services.messages import (
     BLOCKED_TEXT,
-    FAQ_TEXT,
-    HOW_IT_WORKS_TEXT,
-    MY_PACKAGE_STUB,
+    BOT_SYSTEM_ERROR_TEXT,
     WELCOME_TEXT,
 )
-from services.tariff_service import format_tariffs_list, get_all_tariffs
+from services.order_service import payment_success_text
 from services.user_service import (
     get_active_order,
     get_user_by_telegram_id,
@@ -87,9 +80,6 @@ async def _resolve_home(session, user: User) -> tuple[str, object | None]:
         received = last.received if last else 0
         return _finished_package_text(user.first_name, received), finished_user_keyboard()
 
-    if user.status == UserStatus.NEW.value:
-        return WELCOME_TEXT, welcome_keyboard()
-
     return WELCOME_TEXT, welcome_keyboard()
 
 
@@ -107,8 +97,23 @@ async def _show_user_home(target: Message, user: User, *, edit: bool = False) ->
         await target.answer(text, reply_markup=kb)
 
 
-@router.message(CommandStart(deep_link=False))
-async def cmd_start(message: Message) -> None:
+def _normalize_start_source(args: str | None) -> str | None:
+    if not args:
+        return None
+    token = args.strip().split()[0][:64]
+    return token or None
+
+
+@router.message(CommandStart())
+async def cmd_start(message: Message, command: CommandObject, state: FSMContext) -> None:
+    await state.clear()
+    start_source = _normalize_start_source(command.args)
+    if command.args and command.args.strip().split()[0] == "payment_ok":
+        await message.answer(
+            "✅ Спасибо! Если оплата прошла — бот пришлёт подтверждение в течение минуты.\n"
+            "Если сообщения нет — нажмите /start"
+        )
+        return
     try:
         async with async_session() as session:
             user, is_new = await register_user(
@@ -117,70 +122,67 @@ async def cmd_start(message: Message) -> None:
                 message.from_user.username,
                 message.from_user.first_name,
             )
+            if start_source and not user.start_source:
+                user.start_source = start_source
+                await session.commit()
+                await session.refresh(user)
 
         if is_new:
-            logger.info("First visit: telegram_id=%s", message.from_user.id)
+            logger.info("First visit: telegram_id=%s source=%s", message.from_user.id, start_source)
             await message.answer(WELCOME_TEXT, reply_markup=welcome_keyboard())
+            try:
+                from services.admin_notify_service import notify_admin_new_registration
+
+                await notify_admin_new_registration(user)
+            except Exception:
+                logger.exception(
+                    "Admin notify failed for new user telegram_id=%s",
+                    message.from_user.id,
+                )
             return
 
         logger.info("Return visit: telegram_id=%s status=%s", user.telegram_id, user.status)
+        async with async_session() as session:
+            from payments.yookassa import sync_user_pending_payments
+
+            activated = await sync_user_pending_payments(session, user.id)
+            if activated:
+                _, order = activated
+                await message.answer(
+                    payment_success_text(order.contact_limit)
+                )
+                user = await get_user_by_telegram_id(session, message.from_user.id)
         await _show_user_home(message, user)
-    except Exception:
+    except Exception as exc:
         logger.exception("Error in /start telegram_id=%s", message.from_user.id)
-        await message.answer("⚠️ Ошибка. Попробуйте /start ещё раз.")
+        from services.admin_notify_service import notify_admin_error
 
-
-@router.callback_query(F.data == CB_HOW_IT_WORKS)
-async def cb_how_it_works(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(HOW_IT_WORKS_TEXT, reply_markup=choose_package_keyboard())
-    await callback.answer()
-
-
-@router.callback_query(F.data == CB_FAQ)
-async def cb_faq(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(FAQ_TEXT, reply_markup=choose_package_keyboard())
-    await callback.answer()
-
-
-@router.callback_query(F.data.in_({CB_CHOOSE_PACKAGE, CB_BUY_NEW}))
-async def cb_choose_package(callback: CallbackQuery) -> None:
-    async with async_session() as session:
-        tariffs = await get_all_tariffs(session)
-    if not tariffs:
-        await callback.answer("Тарифы временно недоступны", show_alert=True)
-        return
-    await callback.message.edit_text(
-        format_tariffs_list(tariffs),
-        reply_markup=tariffs_keyboard(tariffs),
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == CB_MY_PACKAGE)
-async def cb_my_package(callback: CallbackQuery) -> None:
-    async with async_session() as session:
-        user = await get_user_by_telegram_id(session, callback.from_user.id)
-        if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
-            return
-        active = await get_active_order(session, user.id)
-        if active:
-            await session.refresh(active, ["tariff"])
-            text = _active_package_text(user.first_name, active)
-            kb = active_user_keyboard()
-        else:
-            text = MY_PACKAGE_STUB
-            kb = active_user_keyboard()
-    await callback.message.edit_text(text, reply_markup=kb)
-    await callback.answer()
+        await notify_admin_error(
+            event="/start",
+            user_label=str(message.from_user.id),
+            error_message=str(exc),
+        )
+        await message.answer(BOT_SYSTEM_ERROR_TEXT)
 
 
 @router.callback_query(F.data == CB_BACK)
-async def cb_back(callback: CallbackQuery) -> None:
+async def cb_back(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
-    if not user:
-        await callback.message.edit_text(WELCOME_TEXT, reply_markup=welcome_keyboard())
-    else:
-        await _show_user_home(callback.message, user, edit=True)
+        if not user:
+            from handlers.menu import show_main_menu_message
+
+            await show_main_menu_message(callback.message, edit=True)
+        else:
+            from payments.yookassa import sync_user_pending_payments
+
+            activated = await sync_user_pending_payments(session, user.id)
+            if activated:
+                _, order = activated
+                await callback.message.answer(
+                    payment_success_text(order.contact_limit)
+                )
+                user = await get_user_by_telegram_id(session, callback.from_user.id)
+            await _show_user_home(callback.message, user, edit=True)
     await callback.answer()

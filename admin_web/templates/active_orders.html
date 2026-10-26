@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set active = 'active_orders' %}
+{% block title %}Активные заказы{% endblock %}
+{% block content %}
+<h2>Активные заказы</h2>
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
+
+<div class="card"><table>
+  <tr>
+    <th>Имя</th>
+    <th>Username</th>
+    <th>Telegram ID</th>
+    <th>Пакет</th>
+    <th>Лимит</th>
+    <th>Отправлено</th>
+    <th>Осталось</th>
+    <th>Конкуренты</th>
+    <th>Дата покупки</th>
+    <th>Статус</th>
+    <th></th>
+  </tr>
+  {% for row in rows %}
+  {% set o = row.order %}
+  <tr>
+    <td>{{ o.user.first_name or '—' }}</td>
+    <td>@{{ o.user.username or '—' }}</td>
+    <td>{{ o.user.telegram_id }}</td>
+    <td>{{ o.tariff.name if o.tariff else '—' }}</td>
+    <td>{{ o.contact_limit }}</td>
+    <td>{{ o.received }}</td>
+    <td>{{ order_remaining(o) }}</td>
+    <td>{{ row.competitor_count }}</td>
+    <td>{{ format_purchase_date(o) }}</td>
+    <td><span class="badge">{{ labels.get(o.status, o.status) }}</span></td>
+    <td>
+      {% if row.project_id %}
+      <a class="btn" href="/projects/{{ row.project_id }}">📂 Проект</a>
+      {% endif %}
+      <a class="btn" href="/projects/{{ row.project_id }}?mode=message" {% if not row.project_id %}style="display:none"{% endif %}>📤</a>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="11">Нет активных заказов</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

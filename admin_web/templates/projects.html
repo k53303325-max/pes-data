@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set active = 'projects' %}
+{% block title %}Проекты клиентов{% endblock %}
+{% block content %}
+<h2>Проекты клиентов</h2>
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
+
+<form class="filters card" method="get">
+  <input name="q" placeholder="Название, @username, Telegram ID" value="{{ q }}">
+  <select name="status">
+    <option value="">Все статусы</option>
+    <option value="active" {% if status=='active' %}selected{% endif %}>Активен</option>
+    <option value="completed" {% if status=='completed' %}selected{% endif %}>Завершён</option>
+  </select>
+  <input type="date" name="date_from" value="{{ date_from }}" title="Дата от">
+  <input type="date" name="date_to" value="{{ date_to }}" title="Дата до">
+  <button class="btn" type="submit">Найти</button>
+</form>
+
+<div class="card"><table>
+  <tr>
+    <th>Проект</th><th>Клиент</th><th>Telegram</th><th>Пакет</th>
+    <th>Получено</th><th>Осталось</th><th>Дата</th><th>Статус</th><th></th>
+  </tr>
+  {% for p in projects %}
+  <tr>
+    <td><a href="/projects/{{ p.id }}">{{ p.project_name or '— без названия —' }}</a></td>
+    <td>{{ p.user.first_name or '—' }}</td>
+    <td>@{{ p.user.username or p.user.telegram_id }}</td>
+    <td>{{ p.order.tariff.name if p.order and p.order.tariff else '—' }}</td>
+    <td>{{ p.order.received if p.order else 0 }} / {{ p.order.contact_limit if p.order else 0 }}</td>
+    <td>{{ order_remaining(p.order) if p.order else 0 }}</td>
+    <td>{{ format_purchase_date(p.order) if p.order else '—' }}</td>
+    <td><span class="badge">{{ labels.get(p.status, p.status) }}</span></td>
+    <td><a class="btn" href="/projects/{{ p.id }}">Открыть</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9">Нет проектов</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

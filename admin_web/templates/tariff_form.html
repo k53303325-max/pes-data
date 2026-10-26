@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% set active = 'tariffs' %}
+{% block title %}{% if tariff %}Редактирование{% else %}Новый тариф{% endif %}{% endblock %}
+{% block content %}
+<h2>{% if tariff %}Редактирование тарифа{% else %}Новый тариф{% endif %}</h2>
+<div class="card">
+<form method="post" action="/tariffs/save">
+  {% if tariff %}<input type="hidden" name="tariff_id" value="{{ tariff.id }}">{% endif %}
+  <label>Эмодзи</label>
+  <input name="emoji" value="{{ tariff.emoji if tariff else '' }}" placeholder="🚀">
+  <label>Название</label>
+  <input name="name" value="{{ tariff.name if tariff else '' }}" required>
+  <label>Цена (₽)</label>
+  <input name="price" type="number" min="1" value="{{ tariff.price if tariff else '' }}" required>
+  <label>Лимит контактов</label>
+  <input name="contact_limit" type="number" min="1" value="{{ tariff.contact_limit if tariff else '' }}" required>
+  <label>Порядок сортировки</label>
+  <input name="sort_order" type="number" value="{{ tariff.sort_order if tariff else 0 }}">
+  <label>Описание (необязательно)</label>
+  <textarea name="description" rows="3">{{ tariff.description if tariff and tariff.description else '' }}</textarea>
+  <label style="display:flex;align-items:center;gap:8px;margin:12px 0">
+    <input type="checkbox" name="is_active" value="1" {% if not tariff or tariff.is_active %}checked{% endif %}>
+    Активен (виден пользователям)
+  </label>
+  <button class="btn" type="submit">Сохранить</button>
+  <a class="btn btn-secondary" href="/tariffs" style="margin-left:8px">Отмена</a>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set active = 'tariffs' %}
+{% block title %}Тарифы{% endblock %}
+{% block content %}
+<h2>Тарифы</h2>
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
+<p><a class="btn" href="/tariffs/new">+ Добавить тариф</a></p>
+<div class="card">
+<table>
+  <tr>
+    <th>#</th><th></th><th>Название</th><th>Цена</th><th>Лимит</th><th>Порядок</th><th>Статус</th><th></th>
+  </tr>
+  {% for t in tariffs %}
+  <tr>
+    <td>{{ t.id }}</td>
+    <td>{{ t.emoji }}</td>
+    <td>{{ t.name }}</td>
+    <td>{{ t.price }} ₽</td>
+    <td>{{ t.contact_limit }}</td>
+    <td>{{ t.sort_order }}</td>
+    <td>
+      {% if t.is_active %}
+      <span class="badge">Активен</span>
+      {% else %}
+      <span class="badge" style="opacity:.5">Отключён</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="/tariffs/{{ t.id }}/edit">Изменить</a>
+      <form method="post" action="/tariffs/{{ t.id }}/toggle" style="display:inline;margin-left:8px">
+        <button class="btn btn-secondary" type="submit" style="padding:4px 10px;font-size:12px">
+          {% if t.is_active %}Отключить{% else %}Включить{% endif %}
+        </button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8">Тарифов нет</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

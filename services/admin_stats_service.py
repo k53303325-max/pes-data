@@ -68,7 +68,11 @@ async def list_users(
             stmt = stmt.where(User.username.ilike(f"%{q.lstrip('@')}%"))
     if status:
         stmt = stmt.where(User.status == status)
-    result = await session.execute(stmt.options(selectinload(User.orders)))
+    result = await session.execute(stmt.options(
+        selectinload(User.orders),
+        selectinload(User.projects),
+        selectinload(User.payments),
+    ))
     return list(result.scalars().all())
 
 

@@ -19,49 +19,68 @@
 
 {% if selected_user %}
 <div class="card">
-  <p><strong>Пользователь:</strong> {{ selected_user.first_name or selected_user.username or selected_user.telegram_id }}</p>
+  <p><strong>Имя:</strong> {{ selected_user.first_name or '—' }}</p>
+  <p><strong>Username:</strong> @{{ selected_user.username or '—' }}</p>
+  <p><strong>Telegram ID:</strong> {{ selected_user.telegram_id }}</p>
   <p><strong>Статус:</strong> {{ labels.get(selected_user.status, selected_user.status) }}</p>
 
   {% if active_order %}
-  <p style="color:#6ee7a0">✅ <strong>Активный пакет:</strong> {{ active_order.tariff.name if active_order.tariff else '—' }} — {{ active_order.contact_limit }} контактов</p>
-  <p><strong>Получено:</strong> {{ active_order.received }} · <strong>Осталось:</strong> {{ order_remaining(active_order) }}</p>
+  <p><strong>Активный пакет:</strong> {{ active_order.tariff.name if active_order.tariff else '—' }}</p>
+  <p><strong>Лимит:</strong> {{ active_order.contact_limit }}</p>
+  <p><strong>Отправлено:</strong> {{ active_order.received }}</p>
+  <p><strong>Осталось:</strong> {{ order_remaining(active_order) }}</p>
+  <p><strong>Конкуренты:</strong> {{ competitor_count }}</p>
+  <p><strong>Дата покупки:</strong> {{ format_purchase_date(active_order) }}</p>
   {% else %}
-  <p style="color:#fbbf24">⚠️ <strong>Нет активного пакета</strong> — оплата не найдена</p>
-  {% endif %}
-
-  {% if selected_user.payments %}
-  <p><strong>Оплаты:</strong>
-    {% for p in selected_user.payments[:5] %}
-      {{ p.amount }} ₽ — {{ labels.get(p.status, p.status) }}{% if not loop.last %}, {% endif %}
-    {% endfor %}
-  </p>
+  <p style="color:#fbbf24">⚠️ <strong>Нет активного пакета</strong></p>
   {% endif %}
 </div>
 
-{% if active_order %}
+{% if active_order and not mode %}
 <div class="card">
-  <form method="post" action="/delivery/preview" enctype="multipart/form-data">
+  <h3>📤 Отправить контакты</h3>
+  <p>Выберите способ отправки:</p>
+  <p style="margin-top:16px">
+    <a class="btn" href="/delivery?user_id={{ user_id }}&mode=message">💬 Отправить сообщением</a>
+    <a class="btn btn-secondary" href="/delivery?user_id={{ user_id }}&mode=file" style="margin-left:8px">📎 Отправить файлом</a>
+  </p>
+</div>
+{% endif %}
+
+{% if active_order and mode == 'message' %}
+<div class="card">
+  <h3>💬 Отправить сообщением</h3>
+  <form method="post" action="/delivery/preview">
     <input type="hidden" name="order_id" value="{{ active_order.id }}">
-
-    <label>Список номеров (по одному на строку или через запятую)</label>
-    <textarea name="phones_text" rows="8" placeholder="+79991234567&#10;89991234568&#10;79991234569" style="width:100%;margin-bottom:16px;background:#1a1a2e;color:#eee;border:1px solid #333;border-radius:8px;padding:10px;font-family:monospace"></textarea>
-
-    <p style="color:#888;margin:12px 0">— или загрузите файл —</p>
-
-    <label>Файл контактов (TXT, CSV, XLSX)</label>
-    <input type="file" name="file" accept=".txt,.csv,.xlsx">
-
-    <button class="btn" type="submit" style="margin-top:16px">Загрузить и проверить</button>
+    <input type="hidden" name="delivery_type" value="message">
+    <label>Список номеров (каждый с новой строки)</label>
+    <textarea name="phones_text" rows="12" placeholder="79991234567&#10;79997654321&#10;79995556677" style="width:100%;margin-bottom:16px;background:#1a1a2e;color:#eee;border:1px solid #333;border-radius:8px;padding:10px;font-family:monospace"></textarea>
+    <button class="btn" type="submit">Проверить и продолжить</button>
+    <a class="btn btn-secondary" href="/delivery?user_id={{ user_id }}" style="margin-left:8px">Назад</a>
   </form>
 </div>
-{% else %}
+{% endif %}
+
+{% if active_order and mode == 'file' %}
+<div class="card">
+  <h3>📎 Отправить файлом</h3>
+  <form method="post" action="/delivery/preview" enctype="multipart/form-data">
+    <input type="hidden" name="order_id" value="{{ active_order.id }}">
+    <input type="hidden" name="delivery_type" value="file">
+    <label>Файл контактов (TXT, CSV, XLSX)</label>
+    <input type="file" name="file" accept=".txt,.csv,.xlsx" required>
+    <button class="btn" type="submit" style="margin-top:16px">Загрузить и проверить</button>
+    <a class="btn btn-secondary" href="/delivery?user_id={{ user_id }}" style="margin-left:8px">Назад</a>
+  </form>
+</div>
+{% endif %}
+
+{% if not active_order %}
 <div class="card" style="border-color:#6366f1">
   <p>Для теста можно создать заказ без оплаты:</p>
   <form method="post" action="/delivery/test-order">
     <input type="hidden" name="user_id" value="{{ selected_user.id }}">
-    <button class="btn" type="submit" style="background:#6366f1">
-      🧪 Создать тестовый заказ (Старт, 100 контактов)
-    </button>
+    <button class="btn" type="submit" style="background:#6366f1">🧪 Создать тестовый заказ</button>
   </form>
 </div>
 {% endif %}

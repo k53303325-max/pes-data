@@ -8,14 +8,20 @@ from starlette.middleware.sessions import SessionMiddleware
 from config.settings import settings
 
 SESSION_KEY = "admin_authenticated"
+ADMIN_USER_KEY = "admin_username"
 
 
 def is_authenticated(request: Request) -> bool:
     return request.session.get(SESSION_KEY) is True
 
 
-def login(request: Request) -> None:
+def login(request: Request, username: str = "") -> None:
     request.session[SESSION_KEY] = True
+    request.session[ADMIN_USER_KEY] = username or settings.admin_login
+
+
+def get_admin_username(request: Request) -> str:
+    return request.session.get(ADMIN_USER_KEY) or settings.admin_login
 
 
 def logout(request: Request) -> None:

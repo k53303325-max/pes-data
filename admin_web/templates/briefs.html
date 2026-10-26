@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set active = 'briefs' %}
+{% block title %}Обращения — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Обращения (брифы)</h2>
+<p><a href="/trials">Триалы по ИНН</a></p>
+{% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
+<p style="margin-bottom:16px;color:#666">
+  Промокод 100% для теста: по умолчанию <code>PESDATA100</code> (переменная <code>PROMO_TEST_CODE</code> на Vercel). Хэш: {{ promo_hint }}
+</p>
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Код</th>
+        <th>Клиент</th>
+        <th>Триал</th>
+        <th>Пакет</th>
+        <th>Статус</th>
+        <th>Дата</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in briefs %}
+      <tr>
+        <td>{{ b.request_code }}</td>
+        <td>
+          {{ b.user.first_name or '—' }}
+          {% if b.user.username %}<br>@{{ b.user.username }}{% endif %}
+        </td>
+        <td>{{ 'да' if b.is_trial else 'нет' }}</td>
+        <td>{{ b.package_code or '—' }}</td>
+        <td>{{ brief_labels.get(b.status, b.status) }}</td>
+        <td>{{ b.submitted_at or b.created_at }}</td>
+        <td><a href="/briefs/{{ b.id }}">Открыть</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Обращений пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

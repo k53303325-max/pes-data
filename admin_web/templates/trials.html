@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% set active = 'briefs' %}
+{% block title %}Триалы — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Триалы</h2>
+<p><a href="/briefs">← Обращения</a></p>
+{% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ИНН</th>
+        <th>Клиент</th>
+        <th>Telegram ID</th>
+        <th>Статус</th>
+        <th>Дата</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in trials %}
+      <tr>
+        <td>{{ t.inn }}</td>
+        <td>{{ t.user.first_name or '—' }}{% if t.user.username %} @{{ t.user.username }}{% endif %}</td>
+        <td>{{ t.telegram_id }}</td>
+        <td>{{ trial_labels.get(t.status, t.status) }}</td>
+        <td>{{ t.created_at }}</td>
+        <td>
+          <form method="post" action="/trials/{{ t.id }}/status" class="inline-form">
+            <select name="status">
+              {% for key, label in trial_labels.items() %}
+              <option value="{{ key }}" {% if t.status == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-small" type="submit">OK</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Записей нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -6,9 +6,11 @@ from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -41,6 +43,70 @@ class OrderStatus(str, Enum):
     COMPLETED = "completed"
 
 
+class CompetitorStatus(str, Enum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    DELETED = "deleted"
+
+
+class DeliveryType(str, Enum):
+    MESSAGE = "message"
+    FILE = "file"
+
+
+class ProjectStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+
+
+class ActivityType(str, Enum):
+    PAYMENT = "payment"
+    PROJECT_CREATED = "project_created"
+    COMPETITORS_ADDED = "competitors_added"
+    CONTACTS_SENT = "contacts_sent"
+
+
+class ChatDirection(str, Enum):
+    IN = "in"
+    OUT = "out"
+
+
+class BriefRequestStatus(str, Enum):
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    NOTIFY_FAILED = "notify_failed"
+
+
+class TrialEntitlementStatus(str, Enum):
+    REQUESTED = "requested"
+    CHECKING = "checking"
+    RESERVED = "reserved"
+    ISSUING = "issuing"
+    COMPLETED = "completed"
+    RELEASED = "released"
+
+
+class BankPaymentStatus(str, Enum):
+    NEW = "new"
+    INVOICED = "invoiced"
+    PAID = "paid"
+    CANCELED = "canceled"
+
+
+class AdminNotification(Base):
+    __tablename__ = "admin_notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    new_registration_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    new_project_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    payment_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    competitor_added_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    package_completed_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    error_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -56,8 +122,15 @@ class User(Base):
 
     orders: Mapped[list["Order"]] = relationship(back_populates="user")
     payments: Mapped[list["Payment"]] = relationship(back_populates="user")
-    competitors: Mapped[list["Competitor"]] = relationship(back_populates="user")
-    deliveries: Mapped[list["ContactDelivery"]] = relationship(back_populates="user")
+    competitor_numbers: Mapped[list["CompetitorNumber"]] = relationship(back_populates="user")
+    deliveries: Mapped[list["Delivery"]] = relationship(back_populates="user")
+    projects: Mapped[list["Project"]] = relationship(back_populates="user")
+    activity_logs: Mapped[list["ClientActivityLog"]] = relationship(back_populates="user")
+    chat_messages: Mapped[list["BotMessage"]] = relationship(back_populates="user")
+    niche_briefs: Mapped[list["NicheBriefRequest"]] = relationship(back_populates="user")
+    trial_entitlements: Mapped[list["TrialEntitlement"]] = relationship(back_populates="user")
+    bank_payment_requests: Mapped[list["BankPaymentRequest"]] = relationship(back_populates="user")
+    start_source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
 
 class Tariff(Base):
@@ -65,8 +138,12 @@ class Tariff(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
+    emoji: Mapped[str] = mapped_column(String(10), default="")
     price: Mapped[int] = mapped_column(Integer)
     contact_limit: Mapped[int] = mapped_column(Integer)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     orders: Mapped[list["Order"]] = relationship(back_populates="tariff")
     payments: Mapped[list["Payment"]] = relationship(back_populates="tariff")
@@ -88,7 +165,8 @@ class Order(Base):
     user: Mapped["User"] = relationship(back_populates="orders")
     tariff: Mapped["Tariff"] = relationship(back_populates="orders")
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
-    deliveries: Mapped[list["ContactDelivery"]] = relationship(back_populates="order")
+    deliveries: Mapped[list["Delivery"]] = relationship(back_populates="order")
+    project: Mapped[Optional["Project"]] = relationship(back_populates="order", uselist=False)
 
 
 class Payment(Base):
@@ -98,6 +176,7 @@ class Payment(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
     tariff_id: Mapped[int] = mapped_column(ForeignKey("tariffs.id"))
+    contact_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     amount: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default=PaymentStatus.PENDING.value, index=True)
     external_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
@@ -109,31 +188,175 @@ class Payment(Base):
     tariff: Mapped["Tariff"] = relationship(back_populates="payments")
 
 
-class Competitor(Base):
-    __tablename__ = "competitors"
-    __table_args__ = (UniqueConstraint("user_id", "phone", name="uq_user_competitor_phone"),)
+class Project(Base):
+    __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    phone: Mapped[str] = mapped_column(String(20))
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True, index=True)
+    project_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default=ProjectStatus.ACTIVE.value, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="projects")
+    order: Mapped["Order"] = relationship(back_populates="project")
+    competitor_numbers: Mapped[list["CompetitorNumber"]] = relationship(back_populates="project")
+    deliveries: Mapped[list["Delivery"]] = relationship(back_populates="project")
+    activity_logs: Mapped[list["ClientActivityLog"]] = relationship(back_populates="project")
+
+
+class ClientActivityLog(Base):
+    __tablename__ = "client_activity_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    action_type: Mapped[str] = mapped_column(String(50), index=True)
+    description: Mapped[str] = mapped_column(Text)
+    contacts_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    admin_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    user: Mapped["User"] = relationship(back_populates="competitors")
+    project: Mapped["Project"] = relationship(back_populates="activity_logs")
+    user: Mapped["User"] = relationship(back_populates="activity_logs")
 
 
-class ContactDelivery(Base):
-    __tablename__ = "contact_deliveries"
+class NicheBriefRequest(Base):
+    __tablename__ = "niche_brief_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    request_code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default=BriefRequestStatus.DRAFT.value, index=True)
+    is_trial: Mapped[bool] = mapped_column(Boolean, default=False)
+    package_code: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    business_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sales_team: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    competitor_phones_raw: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    competitor_phones_normalized: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    competitors_need_help: Mapped[bool] = mapped_column(Boolean, default=False)
+    inn: Mapped[Optional[str]] = mapped_column(String(12), nullable=True, index=True)
+    inn_manual_review: Mapped[bool] = mapped_column(Boolean, default=False)
+    inn_manual_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    admin_notified: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="niche_briefs")
+
+
+class TrialEntitlement(Base):
+    __tablename__ = "trial_entitlements"
+    __table_args__ = (UniqueConstraint("inn", name="uq_trial_entitlement_inn"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    inn: Mapped[str] = mapped_column(String(12))
+    status: Mapped[str] = mapped_column(
+        String(20), default=TrialEntitlementStatus.REQUESTED.value, index=True
+    )
+    brief_request_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("niche_brief_requests.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="trial_entitlements")
+
+
+class BankPaymentRequest(Base):
+    __tablename__ = "bank_payment_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    package_code: Mapped[str] = mapped_column(String(32))
+    package_name: Mapped[str] = mapped_column(String(100))
+    contact_limit: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), default=BankPaymentStatus.NEW.value, index=True)
+    admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="bank_payment_requests")
+
+
+class BotMessage(Base):
+    __tablename__ = "bot_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    direction: Mapped[str] = mapped_column(String(10), index=True)
+    message_type: Mapped[str] = mapped_column(String(30), default="text")
+    content: Mapped[str] = mapped_column(Text)
+    source: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    telegram_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    user: Mapped[Optional["User"]] = relationship(back_populates="chat_messages")
+
+
+class CompetitorNumber(Base):
+    __tablename__ = "competitor_numbers"
+    __table_args__ = (UniqueConstraint("user_id", "phone", name="uq_user_competitor_number_phone"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    phone: Mapped[str] = mapped_column(String(11))
+    added_by: Mapped[str] = mapped_column(String(100), default="user")
+    status: Mapped[str] = mapped_column(
+        String(20), default=CompetitorStatus.ACTIVE.value, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="competitor_numbers")
+    project: Mapped[Optional["Project"]] = relationship(back_populates="competitor_numbers")
+
+
+# Обратная совместимость
+Competitor = CompetitorNumber
+
+
+class Delivery(Base):
+    __tablename__ = "deliveries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
-    count: Mapped[int] = mapped_column(Integer)
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    delivery_type: Mapped[str] = mapped_column(String(20), default=DeliveryType.MESSAGE.value)
+    contacts_count: Mapped[int] = mapped_column(Integer)
+    contacts_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    file_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    file_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    admin_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="deliveries")
     order: Mapped["Order"] = relationship(back_populates="deliveries")
+    project: Mapped[Optional["Project"]] = relationship(back_populates="deliveries")
     contacts: Mapped[list["DeliveredContact"]] = relationship(back_populates="delivery")
+
+    @property
+    def count(self) -> int:
+        return self.contacts_count
+
+
+# Обратная совместимость
+ContactDelivery = Delivery
 
 
 class DeliveredContact(Base):
@@ -141,9 +364,9 @@ class DeliveredContact(Base):
     __table_args__ = (UniqueConstraint("order_id", "phone", name="uq_order_contact_phone"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    delivery_id: Mapped[int] = mapped_column(ForeignKey("contact_deliveries.id"), index=True)
+    delivery_id: Mapped[int] = mapped_column(ForeignKey("deliveries.id"), index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
     phone: Mapped[str] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    delivery: Mapped["ContactDelivery"] = relationship(back_populates="contacts")
+    delivery: Mapped["Delivery"] = relationship(back_populates="contacts")

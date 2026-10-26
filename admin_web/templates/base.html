@@ -12,11 +12,16 @@
       <h1>🐶 Пёс Дата</h1>
       <nav>
         <a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
-        <a href="/users" class="{% if active == 'users' %}active{% endif %}">Пользователи</a>
-        <a href="/payments" class="{% if active == 'payments' %}active{% endif %}">Оплаты</a>
-        <a href="/orders" class="{% if active == 'orders' %}active{% endif %}">Заказы</a>
+        <a href="/briefs" class="{% if active == 'briefs' %}active{% endif %}">Обращения</a>
+        <a href="/bank-payments" class="{% if active == 'bank_payments' %}active{% endif %}">Оплата с р/с</a>
+        <a href="/projects" class="{% if active == 'projects' %}active{% endif %}">Проекты</a>
+        <a href="/users" class="{% if active == 'users' %}active{% endif %}">Клиенты</a>
+        <a href="/chats" class="{% if active == 'chats' %}active{% endif %}">Переписка</a>
+        <a href="/payments" class="{% if active == 'payments' %}active{% endif %}">Оплаты ЮKassa</a>
+        <a href="/packages" class="{% if active == 'packages' %}active{% endif %}">Пакеты</a>
         <a href="/delivery" class="{% if active == 'delivery' %}active{% endif %}">Отправка контактов</a>
-        <a href="/stats" class="{% if active == 'stats' %}active{% endif %}">Статистика</a>
+        <a href="/deliveries/history" class="{% if active == 'delivery_history' %}active{% endif %}">История выдач</a>
+        <a href="/admin/notifications" class="{% if active == 'admin_notifications' %}active{% endif %}">Уведомления</a>
         <a href="/logout" style="margin-top:24px">Выйти</a>
       </nav>
     </aside>

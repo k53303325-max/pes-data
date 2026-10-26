@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import Order, OrderStatus, Payment, User, UserStatus
+from database.models import (
+    Order,
+    OrderStatus,
+    Payment,
+    Project,
+    User,
+    UserStatus,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -72,12 +79,80 @@ async def get_user_with_orders(session: AsyncSession, user_id: int) -> User | No
         .options(
             selectinload(User.orders).selectinload(Order.tariff),
             selectinload(User.payments).selectinload(Payment.tariff),
-            selectinload(User.competitors),
+            selectinload(User.competitor_numbers),
             selectinload(User.deliveries),
+            selectinload(User.projects)
+            .selectinload(Project.order)
+            .selectinload(Order.tariff),
         )
     )
     return result.scalar_one_or_none()
 
 
+async def refresh_user_status(session: AsyncSession, user_id: int) -> None:
+    user = await session.get(User, user_id)
+    if not user:
+        return
+    active = await get_active_order(session, user_id)
+    if active:
+        user.status = UserStatus.ACTIVE.value
+    else:
+        has_orders = await session.execute(
+            select(Order.id).where(Order.user_id == user_id).limit(1)
+        )
+        user.status = (
+            UserStatus.FINISHED.value
+            if has_orders.scalar_one_or_none()
+            else UserStatus.NEW.value
+        )
+
+
 def order_remaining(order: Order) -> int:
     return max(0, order.contact_limit - order.received)
+
+
+async def delete_user(session: AsyncSession, user_id: int) -> bool:
+    user = await session.get(User, user_id)
+    if not user:
+        return False
+
+    try:
+        cleanup_sql = [
+            """
+            DELETE FROM delivered_contacts
+            WHERE order_id IN (SELECT id FROM orders WHERE user_id = :uid)
+            """,
+            """
+            DELETE FROM delivered_contacts
+            WHERE delivery_id IN (SELECT id FROM deliveries WHERE user_id = :uid)
+            """,
+            """
+            DELETE FROM delivered_contacts
+            WHERE delivery_id IN (SELECT id FROM contact_deliveries WHERE user_id = :uid)
+            """,
+            "DELETE FROM contact_deliveries WHERE user_id = :uid",
+            """
+            DELETE FROM client_activity_log
+            WHERE user_id = :uid
+               OR project_id IN (SELECT id FROM projects WHERE user_id = :uid)
+            """,
+            "DELETE FROM deliveries WHERE user_id = :uid",
+            "DELETE FROM competitor_numbers WHERE user_id = :uid",
+            "DELETE FROM bot_messages WHERE user_id = :uid",
+            "DELETE FROM payments WHERE user_id = :uid",
+            "DELETE FROM projects WHERE user_id = :uid",
+            "DELETE FROM orders WHERE user_id = :uid",
+            "DELETE FROM competitors WHERE user_id = :uid",
+        ]
+        params = {"uid": user_id}
+        for sql in cleanup_sql:
+            await session.execute(text(sql), params)
+
+        await session.delete(user)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
+    logger.info("Deleted user id=%s", user_id)
+    return True

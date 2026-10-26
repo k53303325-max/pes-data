@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% set active = 'bank_payments' %}
+{% block title %}Оплата с р/с — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Заявки на оплату с расчётного счёта</h2>
+{% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Клиент</th>
+        <th>Пакет</th>
+        <th>Сумма</th>
+        <th>Статус</th>
+        <th>Дата</th>
+        <th>Действие</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in requests %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>
+          {{ r.user.first_name or '—' }}
+          {% if r.user.username %}<br>@{{ r.user.username }}{% endif %}
+        </td>
+        <td>{{ r.package_name }} ({{ r.contact_limit }})</td>
+        <td>{{ "{:,}".format(r.amount).replace(",", " ") }} ₽</td>
+        <td>{{ bank_labels.get(r.status, r.status) }}</td>
+        <td>{{ r.created_at }}</td>
+        <td>
+          <form method="post" action="/bank-payments/{{ r.id }}/status" class="inline-form">
+            <select name="status">
+              {% for key, label in bank_labels.items() %}
+              <option value="{{ key }}" {% if r.status == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="admin_note" placeholder="Заметка" value="{{ r.admin_note or '' }}" style="max-width:140px">
+            <button class="btn btn-small" type="submit">OK</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Заявок пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
