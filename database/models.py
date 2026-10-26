@@ -268,6 +268,28 @@ class TrialEntitlement(Base):
     user: Mapped["User"] = relationship(back_populates="trial_entitlements")
 
 
+class FsmStorageEntry(Base):
+    __tablename__ = "fsm_storage"
+    __table_args__ = (
+        UniqueConstraint(
+            "bot_id",
+            "chat_id",
+            "user_id",
+            "destiny",
+            name="uq_fsm_storage_key",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger)
+    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    thread_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    destiny: Mapped[str] = mapped_column(String(32), default="default")
+    state: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    data_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
 class BankPaymentRequest(Base):
     __tablename__ = "bank_payment_requests"
 

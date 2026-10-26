@@ -149,10 +149,10 @@ async def check_trial_inn(session: AsyncSession, user: User, inn: str) -> TrialC
         return TrialCheckResult(True, None)
 
     user_trials = await session.execute(
-        select(TrialEntitlement).where(
+        select(TrialEntitlement.id).where(
             TrialEntitlement.user_id == user.id,
             TrialEntitlement.status.in_(tuple(TRIAL_BLOCKING_STATUSES)),
-        )
+        ).limit(1)
     )
     if user_trials.scalar_one_or_none():
         return TrialCheckResult(False, "telegram_used")
@@ -216,10 +216,15 @@ def format_summary(brief: NicheBriefRequest) -> str:
 
 
 async def submit_brief(session: AsyncSession, brief: NicheBriefRequest) -> NicheBriefRequest:
+    from database.models import User
+
     brief.status = BriefRequestStatus.SUBMITTED.value
     brief.submitted_at = datetime.now(timezone.utc)
     if brief.is_trial and brief.inn and not brief.inn_manual_review:
-        await reserve_trial_for_inn(session, brief.user, brief.inn, brief.id)
+        user = await session.get(User, brief.user_id)
+        if not user:
+            raise ValueError("Пользователь не найден")
+        await reserve_trial_for_inn(session, user, brief.inn, brief.id)
     else:
         await session.commit()
     await session.refresh(brief)
@@ -245,3 +250,21 @@ def phones_from_storage(raw: str | None) -> list[str]:
 def validate_inn_field(text: str) -> tuple[bool, str | None]:
     ok, inn = validate_inn(text)
     return ok, inn
+
+
+def infer_brief_step(draft: NicheBriefRequest) -> str | None:
+    if not draft.business_text:
+        return "business"
+    if not draft.sales_team:
+        return "sales"
+    if (
+        not draft.competitors_need_help
+        and not draft.competitor_phones_normalized
+        and not (draft.competitor_phones_raw or "").strip()
+    ):
+        return "competitors"
+    if draft.is_trial and draft.inn_manual_review and not (draft.inn_manual_details or "").strip():
+        return "inn_manual"
+    if draft.is_trial and not draft.inn and not draft.inn_manual_review:
+        return "inn"
+    return "ready"

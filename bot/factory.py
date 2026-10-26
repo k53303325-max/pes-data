@@ -5,6 +5,8 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+
+from bot.postgres_storage import PostgresStorage
 from aiogram.types import BotCommand, ErrorEvent
 
 from bot.chat_log_middleware import ChatLogMiddleware, OutgoingChatLogMiddleware
@@ -50,7 +52,8 @@ def get_bot() -> Bot:
 def get_dispatcher() -> Dispatcher:
     global _dp
     if _dp is None:
-        _dp = Dispatcher(storage=MemoryStorage())
+        storage = PostgresStorage() if settings.database_url.startswith("postgresql") else MemoryStorage()
+        _dp = Dispatcher(storage=storage)
 
         async def errors_handler(event: ErrorEvent) -> None:
             logger.exception("Bot error", exc_info=event.exception)
@@ -87,7 +90,6 @@ def get_dispatcher() -> Dispatcher:
         chat_log = ChatLogMiddleware()
         _dp.message.middleware(chat_log)
         _dp.callback_query.middleware(chat_log)
-        _dp.include_router(brief.router)
         _dp.include_router(menu.router)
         _dp.include_router(packages.router)
         _dp.include_router(package_payment.router)
@@ -98,6 +100,7 @@ def get_dispatcher() -> Dispatcher:
         _dp.include_router(profile.router)
         _dp.include_router(project.router)
         _dp.include_router(competitors.router)
+        _dp.include_router(brief.router)
         _dp.include_router(start.router)
     return _dp
 

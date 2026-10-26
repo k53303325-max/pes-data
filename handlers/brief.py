@@ -35,12 +35,14 @@ from services.brief_service import (
     format_summary,
     get_draft_brief,
     get_or_create_draft,
+    infer_brief_step,
     parse_competitor_input,
     phones_to_storage,
     submit_brief,
     validate_inn_field,
 )
 from services.messages import (
+    BOT_SYSTEM_ERROR_TEXT,
     BRIEF_FAILED_TEXT,
     BRIEF_INN_INVALID,
     BRIEF_INN_NO_HELP,
@@ -172,7 +174,7 @@ async def brief_comp_help(callback: CallbackQuery, state: FSMContext) -> None:
                 draft.competitor_phones_raw = "нужна помощь"
                 draft.competitor_phones_normalized = None
                 await session.commit()
-                await _goto_after_competitors(callback.message, state, draft, user.id, edit=False)
+                await _goto_after_competitors(callback.message, state, draft, user, edit=False)
     await callback.answer()
 
 
@@ -204,43 +206,60 @@ async def brief_competitors(message: Message, state: FSMContext) -> None:
         draft.competitor_phones_raw = message.text.strip()
         draft.competitor_phones_normalized = phones_to_storage(phones)
         await session.commit()
-        await _goto_after_competitors(message, state, draft, user.id, edit=False)
+        await _goto_after_competitors(message, state, draft, user, edit=False)
 
 
-async def _goto_after_competitors(message, state: FSMContext, draft: NicheBriefRequest, user_id: int, *, edit: bool) -> None:
+async def _goto_after_competitors(
+    message,
+    state: FSMContext,
+    draft: NicheBriefRequest,
+    user,
+    *,
+    edit: bool,
+) -> None:
     if draft.is_trial and not draft.inn and not draft.inn_manual_review:
         await state.set_state(BriefState.inn)
         text = BRIEF_INN_TEXT
         kb = brief_inn_keyboard()
         await message.answer(text, reply_markup=kb)
         return
-    await _show_summary(message, state, user_id)
+    await _show_summary(message, state, user.telegram_id)
 
 
-@router.message(BriefState.inn, F.text)
-async def brief_inn(message: Message, state: FSMContext) -> None:
+async def _process_inn_input(message: Message, state: FSMContext) -> None:
     ok, inn = validate_inn_field(message.text or "")
     if not ok or not inn:
         await message.answer(BRIEF_INN_INVALID, reply_markup=brief_inn_keyboard())
         return
 
-    async with async_session() as session:
-        user = await get_user_by_telegram_id(session, message.from_user.id)
-        if not user:
-            return
-        check = await check_trial_inn(session, user, inn)
-        if not check.ok:
-            await _trial_block_message(message, check.reason or "")
-            return
-        draft = await get_draft_brief(session, user.id)
-        if not draft:
-            return
-        draft.inn = inn
-        draft.inn_manual_review = False
-        draft.inn_manual_details = None
-        await session.commit()
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, message.from_user.id)
+            if not user:
+                await message.answer(BOT_SYSTEM_ERROR_TEXT)
+                return
+            check = await check_trial_inn(session, user, inn)
+            if not check.ok:
+                await _trial_block_message(message, check.reason or "")
+                return
+            draft = await get_draft_brief(session, user.id)
+            if not draft:
+                await message.answer("Начните бриф заново: /start → «Проверить мою нишу».")
+                return
+            draft.inn = inn
+            draft.inn_manual_review = False
+            draft.inn_manual_details = None
+            await session.commit()
 
-    await _show_summary(message, state, user.id)
+        await _show_summary(message, state, message.from_user.id)
+    except Exception:
+        logger.exception("brief_inn failed telegram_id=%s", message.from_user.id)
+        await message.answer(BOT_SYSTEM_ERROR_TEXT)
+
+
+@router.message(BriefState.inn, F.text)
+async def brief_inn(message: Message, state: FSMContext) -> None:
+    await _process_inn_input(message, state)
 
 
 @router.callback_query(F.data == CB_BRIEF_INN_NO, BriefState.inn)
@@ -288,9 +307,11 @@ async def _show_summary(message, state: FSMContext, telegram_id: int) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, telegram_id)
         if not user:
+            await message.answer(BOT_SYSTEM_ERROR_TEXT)
             return
         draft = await get_draft_brief(session, user.id)
         if not draft:
+            await message.answer("Черновик брифа не найден. Начните с /start.")
             return
         body = format_summary(draft)
     await state.set_state(BriefState.summary)
@@ -384,4 +405,37 @@ async def brief_confirm(callback: CallbackQuery, state: FSMContext) -> None:
             reply_markup=brief_success_keyboard(),
         )
     await callback.answer()
+
+
+@router.message(F.text)
+async def brief_recover_from_draft(message: Message, state: FSMContext) -> None:
+    if await state.get_state():
+        return
+
+    async with async_session() as session:
+        user = await get_user_by_telegram_id(session, message.from_user.id)
+        if not user:
+            return
+        draft = await get_draft_brief(session, user.id)
+        if not draft:
+            return
+        step = infer_brief_step(draft)
+
+    if step == "business":
+        await state.set_state(BriefState.business)
+        await brief_business(message, state)
+    elif step == "sales":
+        await state.set_state(BriefState.sales)
+        await message.answer(BRIEF_Q2_TEXT, reply_markup=brief_sales_keyboard())
+    elif step == "competitors":
+        await state.set_state(BriefState.competitors)
+        await brief_competitors(message, state)
+    elif step == "inn":
+        await state.set_state(BriefState.inn)
+        await _process_inn_input(message, state)
+    elif step == "inn_manual":
+        await state.set_state(BriefState.inn_manual)
+        await brief_inn_manual_details(message, state)
+    elif step == "ready":
+        await _show_summary(message, state, message.from_user.id)
 
