@@ -34,7 +34,7 @@ def package_payment_keyboard(link, package_code: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="💳 Перейти к оплате", url=link.confirmation_url),
         ])
     rows.append([
-        InlineKeyboardButton(text="🎟 Промокод 100%", callback_data=f"{CB_PROMO_PKG_PREFIX}{package_code}"),
+        InlineKeyboardButton(text="🎟 Промокод", callback_data=f"{CB_PROMO_PKG_PREFIX}{package_code}"),
     ])
     rows.append([
         InlineKeyboardButton(text="◀️ К пакету", callback_data=f"{CB_PKG_PREFIX}{package_code}"),
