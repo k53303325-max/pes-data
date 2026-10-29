@@ -23,8 +23,12 @@ def normalize_database_url(url: str) -> str:
 
 
 def resolve_database_url() -> str:
-    """Vercel Postgres автоматически добавляет POSTGRES_URL."""
-    for key in ("POSTGRES_URL", "DATABASE_URL", "POSTGRES_URL_NON_POOLING"):
+    """Vercel Postgres: для serverless нужен NON_POOLING (asyncpg + pooler ломается)."""
+    if os.getenv("VERCEL") == "1":
+        keys = ("POSTGRES_URL_NON_POOLING", "DATABASE_URL", "POSTGRES_URL")
+    else:
+        keys = ("POSTGRES_URL", "DATABASE_URL", "POSTGRES_URL_NON_POOLING")
+    for key in keys:
         value = os.getenv(key)
         if value:
             return normalize_database_url(value)

@@ -10,7 +10,7 @@ engine_kwargs: dict = {"echo": False}
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif settings.database_url.startswith("postgresql"):
-    connect_args = {"ssl": True}
+    connect_args = {"ssl": True, "timeout": 10, "command_timeout": 15}
     if settings.is_vercel:
         engine_kwargs["poolclass"] = NullPool
 

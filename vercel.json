@@ -3,6 +3,11 @@
   "env": {
     "PROMO_TEST_CODE": "PESDATA100"
   },
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30
+    }
+  },
   "builds": [
     { "src": "api/index.py", "use": "@vercel/python" },
     { "src": "public/**", "use": "@vercel/static" }

@@ -113,8 +113,16 @@ async def _ensure_db() -> None:
     global _db_initialized
     if not _db_initialized:
         await init_db()
-        await ensure_telegram_webhook()
         _db_initialized = True
+
+
+async def _setup_telegram_webhook_once() -> None:
+    try:
+        import asyncio
+
+        await asyncio.wait_for(ensure_telegram_webhook(), timeout=8.0)
+    except Exception:
+        logger.exception("Telegram webhook setup failed (non-fatal)")
 
 
 DB_SETUP_HTML = """
@@ -170,12 +178,22 @@ STATUS_LABELS = {
 
 @app.middleware("http")
 async def init_db_middleware(request: Request, call_next):
+    if request.url.path == "/health":
+        return await call_next(request)
     if settings.is_vercel and not settings.database_url:
         if request.url.path in ("/webhook/telegram", settings.yookassa_webhook_path):
             return HTMLResponse('{"ok":false,"error":"no db"}', status_code=503)
         return HTMLResponse(DB_SETUP_HTML, status_code=503)
     try:
-        await _ensure_db()
+        import asyncio
+
+        await asyncio.wait_for(_ensure_db(), timeout=20.0)
+    except asyncio.TimeoutError:
+        logger.error("init_db timeout path=%s", request.url.path)
+        return HTMLResponse(
+            "<h1>База данных не отвечает</h1><p>Попробуйте через минуту.</p>",
+            status_code=503,
+        )
     except Exception as exc:
         return HTMLResponse(
             f"<h1>Ошибка подключения к БД</h1><pre>{exc}</pre>"
@@ -185,6 +203,11 @@ async def init_db_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+@app.get("/health")
+async def health():
+    return {"ok": True, "vercel": settings.is_vercel}
+
+
 @app.post("/webhook/telegram")
 async def telegram_webhook(request: Request):
     """Telegram Bot webhook — работает на Vercel без polling."""
@@ -192,6 +215,8 @@ async def telegram_webhook(request: Request):
 
     if not settings.bot_token:
         return {"ok": False, "error": "BOT_TOKEN not set"}
+
+    await _setup_telegram_webhook_once()
 
     try:
         data = await request.json()
