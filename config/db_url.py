@@ -22,18 +22,22 @@ def normalize_database_url(url: str) -> str:
     return urlunparse(parsed._replace(query=""))
 
 
+def _is_vercel() -> bool:
+    return os.getenv("VERCEL") == "1"
+
+
 def resolve_database_url() -> str:
-    """Vercel Postgres: для serverless нужен NON_POOLING (asyncpg + pooler ломается)."""
-    if os.getenv("VERCEL") == "1":
+    """Vercel serverless: NON_POOLING. ONREZA/обычный хостинг: DATABASE_URL."""
+    if _is_vercel():
         keys = ("POSTGRES_URL_NON_POOLING", "DATABASE_URL", "POSTGRES_URL")
     else:
-        keys = ("POSTGRES_URL", "DATABASE_URL", "POSTGRES_URL_NON_POOLING")
+        keys = ("DATABASE_URL", "POSTGRES_URL", "POSTGRES_URL_NON_POOLING")
     for key in keys:
         value = os.getenv(key)
         if value:
             return normalize_database_url(value)
 
-    if os.getenv("VERCEL") == "1":
+    if _is_vercel():
         return ""
 
     from pathlib import Path
@@ -42,13 +46,19 @@ def resolve_database_url() -> str:
 
 
 def get_app_url() -> str:
+    explicit = (os.getenv("APP_URL") or "").strip().rstrip("/")
+    if explicit:
+        return explicit
     prod = os.getenv("VERCEL_PROJECT_PRODUCTION_URL")
     if prod:
         return f"https://{prod}"
     vercel_url = os.getenv("VERCEL_URL")
     if vercel_url:
         return f"https://{vercel_url}"
-    return os.getenv("APP_URL", "http://127.0.0.1:8000")
+    onreza_url = (os.getenv("ONREZA_APP_URL") or os.getenv("NRZ_APP_URL") or "").strip().rstrip("/")
+    if onreza_url:
+        return onreza_url
+    return "http://127.0.0.1:8000"
 
 
 def resolve_yookassa_return_url() -> str:

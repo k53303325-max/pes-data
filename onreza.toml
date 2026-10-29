@@ -1,0 +1,7 @@
+[project]
+framework = "fastapi"
+
+[deploy]
+python_version = "3.12"
+application = "admin_web.app:app"
+server = "uvicorn"

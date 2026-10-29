@@ -62,6 +62,8 @@ class Settings:
     admin_host: str
     admin_port: int
     is_vercel: bool
+    is_onreza: bool
+    use_webhook: bool
     promo_test_code: str
     allow_mock_payment: bool
     referral_commission_percent: int
@@ -70,6 +72,13 @@ class Settings:
 
 def get_settings() -> Settings:
     admin_telegram_id, admin_username = _parse_admin_settings()
+    is_vercel = os.getenv("VERCEL") == "1"
+    is_onreza = os.getenv("ONREZA") == "1" or bool(_clean_env(os.getenv("NRZ_PROJECT_ID")))
+    use_webhook = (
+        is_vercel
+        or is_onreza
+        or os.getenv("WEBHOOK_MODE") == "1"
+    )
     return Settings(
         bot_token=_clean_env(os.getenv("BOT_TOKEN")),
         bot_username=_clean_env(os.getenv("BOT_USERNAME", "Pesdata_bot")).lstrip("@"),
@@ -92,13 +101,15 @@ def get_settings() -> Settings:
         admin_secret_key=os.getenv("ADMIN_SECRET_KEY", "change-me-secret-key"),
         admin_host=os.getenv("ADMIN_HOST", "127.0.0.1"),
         admin_port=_int_env("ADMIN_PORT", 8000),
-        is_vercel=os.getenv("VERCEL") == "1",
+        is_vercel=is_vercel,
+        is_onreza=is_onreza,
+        use_webhook=use_webhook,
         promo_test_code=os.getenv(
             "PROMO_TEST_CODE",
             "PESDATA100",
         ),
         allow_mock_payment=(
-            os.getenv("ALLOW_MOCK_PAYMENT") == "1" and os.getenv("VERCEL") != "1"
+            os.getenv("ALLOW_MOCK_PAYMENT") == "1" and not is_vercel and not is_onreza
         ),
         referral_commission_percent=_int_env("REFERRAL_COMMISSION_PERCENT", 10),
         referral_payout_hold_days=_int_env("REFERRAL_PAYOUT_HOLD_DAYS", 14),

@@ -114,7 +114,7 @@ def get_dispatcher() -> Dispatcher:
 
 async def ensure_telegram_webhook() -> None:
     global _webhook_ready
-    if _webhook_ready or not settings.is_vercel or not settings.bot_token:
+    if _webhook_ready or not settings.use_webhook or not settings.bot_token:
         return
 
     bot = get_bot()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
 
@@ -104,9 +105,21 @@ logger = get_logger(__name__)
 def render(request: Request, name: str, context: dict | None = None):
     return templates.TemplateResponse(request, name, context or {})
 
-app = FastAPI(title="Пёс Дата Admin")
-
 _db_initialized = False
+
+
+@asynccontextmanager
+async def _app_lifespan(_application: FastAPI):
+    try:
+        await _ensure_db()
+    except Exception:
+        logger.exception("Startup init_db failed")
+    if settings.use_webhook and settings.bot_token:
+        await _setup_telegram_webhook_once()
+    yield
+
+
+app = FastAPI(title="Пёс Дата Admin", lifespan=_app_lifespan)
 
 
 async def _ensure_db() -> None:
@@ -152,13 +165,12 @@ app.add_middleware(
     session_cookie="pes_admin_session",
     max_age=86400 * 7,
     same_site="lax",
-    https_only=settings.is_vercel,
+    https_only=settings.is_vercel or settings.is_onreza,
 )
 
-if not settings.is_vercel:
-    static_dir = BASE / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+static_dir = BASE / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 STATUS_LABELS = {
     "new": "Новый",
@@ -205,7 +217,8 @@ async def init_db_middleware(request: Request, call_next):
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "vercel": settings.is_vercel}
+    platform = "onreza" if settings.is_onreza else ("vercel" if settings.is_vercel else "local")
+    return {"ok": True, "platform": platform}
 
 
 @app.post("/webhook/telegram")
