@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active = 'referrals' %}
+{% block title %}Рефералы — Пёс Дата{% endblock %}
+{% block content %}
+<h2>Партнёрская программа</h2>
+<p style="color:#666;margin-bottom:16px">
+  Ссылка в боте: <code>https://t.me/{{ bot_username }}?start=ref&lt;id&gt;</code> — id клиента в базе.
+</p>
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Клиент</th>
+        <th>Ссылка (код)</th>
+        <th>Пригласил</th>
+        <th>Брифы</th>
+        <th>Оплаты</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>
+          <a href="/users/{{ row.user.id }}">{{ row.user.first_name or '—' }}</a>
+          {% if row.user.username %}<br>@{{ row.user.username }}{% endif %}
+        </td>
+        <td><code>{{ row.code }}</code></td>
+        <td>{{ row.stats.invited }}</td>
+        <td>{{ row.stats.briefs_submitted }}</td>
+        <td>{{ row.stats.paid }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Пока нет данных</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<h3 style="margin-top:24px">Недавние приглашения</h3>
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Кого привели</th><th>Кто пригласил</th><th>Дата</th></tr>
+    </thead>
+    <tbody>
+      {% for u in recent %}
+      <tr>
+        <td><a href="/users/{{ u.id }}">{{ u.first_name or u.telegram_id }}</a></td>
+        <td>
+          {% if u.referred_by %}
+          <a href="/users/{{ u.referred_by.id }}">{{ u.referred_by.first_name or u.referred_by.telegram_id }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ u.created_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">Нет приглашений</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

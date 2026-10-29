@@ -9,6 +9,7 @@ CB_MAIN_HOW = "main_how"
 CB_MAIN_PACKAGES = "main_packages"
 CB_MAIN_FAQ = "main_faq"
 CB_MAIN_CONTACT = "main_contact"
+CB_MAIN_REFERRAL = "main_referral"
 
 CB_PKG_LIST = "pkg_list"
 CB_PKG_PREFIX = "pkg:"
@@ -40,6 +41,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="💰 Пакеты и цены", callback_data=CB_MAIN_PACKAGES)],
         [InlineKeyboardButton(text="❓ Вопросы и ответы", callback_data=CB_MAIN_FAQ)],
         [InlineKeyboardButton(text="✉️ Связаться с командой", callback_data=CB_MAIN_CONTACT)],
+        [InlineKeyboardButton(text="🤝 Партнёрская программа", callback_data=CB_MAIN_REFERRAL)],
     ])
 
 

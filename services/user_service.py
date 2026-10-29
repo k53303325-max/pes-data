@@ -50,6 +50,11 @@ async def register_user(
     session.add(user)
     await session.commit()
     await session.refresh(user)
+    from services.referral_service import referral_code_for_user
+
+    user.referral_code = referral_code_for_user(user.id)
+    await session.commit()
+    await session.refresh(user)
     logger.info("New user: telegram_id=%s username=%s", telegram_id, username)
     return user, True
 

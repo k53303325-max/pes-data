@@ -31,6 +31,7 @@ def _parse_admin_settings() -> tuple[int, str]:
 @dataclass(frozen=True)
 class Settings:
     bot_token: str
+    bot_username: str
     admin_telegram_id: int
     admin_username: str
     database_url: str
@@ -59,6 +60,7 @@ def get_settings() -> Settings:
     admin_telegram_id, admin_username = _parse_admin_settings()
     return Settings(
         bot_token=_clean_env(os.getenv("BOT_TOKEN")),
+        bot_username=_clean_env(os.getenv("BOT_USERNAME", "Pesdata_bot")).lstrip("@"),
         admin_telegram_id=admin_telegram_id,
         admin_username=admin_username,
         database_url=resolve_database_url(),

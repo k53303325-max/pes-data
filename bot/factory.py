@@ -18,6 +18,7 @@ from handlers import (
     competitors,
     faq,
     menu,
+    referral,
     orders,
     package_payment,
     packages,
@@ -91,6 +92,7 @@ def get_dispatcher() -> Dispatcher:
         _dp.message.middleware(chat_log)
         _dp.callback_query.middleware(chat_log)
         _dp.include_router(menu.router)
+        _dp.include_router(referral.router)
         _dp.include_router(packages.router)
         _dp.include_router(package_payment.router)
         _dp.include_router(faq.router)

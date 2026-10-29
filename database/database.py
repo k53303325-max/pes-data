@@ -277,6 +277,34 @@ def _migrate_projects(sync_conn) -> None:
         )
 
 
+def _migrate_users_referral(sync_conn) -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if not insp.has_table("users"):
+        return
+    cols = {c["name"] for c in insp.get_columns("users")}
+    if "referral_code" not in cols:
+        sync_conn.execute(text("ALTER TABLE users ADD COLUMN referral_code VARCHAR(32)"))
+    if "referred_by_user_id" not in cols:
+        sync_conn.execute(text("ALTER TABLE users ADD COLUMN referred_by_user_id INTEGER"))
+    dialect = sync_conn.dialect.name
+    if dialect == "postgresql":
+        sync_conn.execute(
+            text(
+                "UPDATE users SET referral_code = 'ref' || id::text "
+                "WHERE referral_code IS NULL OR referral_code = ''"
+            )
+        )
+    else:
+        sync_conn.execute(
+            text(
+                "UPDATE users SET referral_code = 'ref' || id "
+                "WHERE referral_code IS NULL OR referral_code = ''"
+            )
+        )
+
+
 def _migrate_users_start_source(sync_conn) -> None:
     from sqlalchemy import inspect, text
 
@@ -292,6 +320,7 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_users_start_source)
+        await conn.run_sync(_migrate_users_referral)
         await conn.run_sync(_migrate_tariff_columns)
         await conn.run_sync(_migrate_payments_contact_limit)
         await conn.run_sync(_migrate_competitor_numbers)

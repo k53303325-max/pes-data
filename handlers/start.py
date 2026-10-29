@@ -97,17 +97,12 @@ async def _show_user_home(target: Message, user: User, *, edit: bool = False) ->
         await target.answer(text, reply_markup=kb)
 
 
-def _normalize_start_source(args: str | None) -> str | None:
-    if not args:
-        return None
-    token = args.strip().split()[0][:64]
-    return token or None
-
-
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, state: FSMContext) -> None:
     await state.clear()
-    start_source = _normalize_start_source(command.args)
+    from services.referral_service import attach_referrer, parse_start_payload
+
+    payload = parse_start_payload(command.args)
     if command.args and command.args.strip().split()[0] == "payment_ok":
         await message.answer(
             "✅ Спасибо! Если оплата прошла — бот пришлёт подтверждение в течение минуты.\n"
@@ -122,13 +117,25 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
                 message.from_user.username,
                 message.from_user.first_name,
             )
-            if start_source and not user.start_source:
-                user.start_source = start_source
+            if payload.marketing_source and not user.start_source:
+                user.start_source = payload.marketing_source
                 await session.commit()
                 await session.refresh(user)
 
+            if is_new and payload.referrer_user_id:
+                attached = await attach_referrer(session, user, payload.referrer_user_id)
+                if attached:
+                    from services.referral_service import notify_referral_milestones
+
+                    await notify_referral_milestones(session, user, event="registered")
+
         if is_new:
-            logger.info("First visit: telegram_id=%s source=%s", message.from_user.id, start_source)
+            logger.info(
+                "First visit: telegram_id=%s source=%s referrer=%s",
+                message.from_user.id,
+                payload.marketing_source,
+                payload.referrer_user_id,
+            )
             await message.answer(WELCOME_TEXT, reply_markup=welcome_keyboard())
             try:
                 from services.admin_notify_service import notify_admin_new_registration

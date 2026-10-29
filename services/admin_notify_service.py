@@ -298,6 +298,31 @@ async def notify_admin_trial_interest(user: User, request_code: str) -> None:
     await _send_to_admins(text, NotifyType.NEW_PROJECT)
 
 
+async def notify_admin_referral_event(
+    referrer: User,
+    referee: User,
+    *,
+    event: str,
+) -> None:
+    labels = {
+        "registration": "новая регистрация по ссылке",
+        "brief": "отправлен бриф",
+        "payment": "оплачен пакет",
+    }
+    label = labels.get(event, event)
+    text = (
+        f"🤝 <b>Реферал — {html.escape(label)}</b>\n\n"
+        f"Пригласивший:\n{_user_name(referrer)}\n\n"
+        f"Username:\n{_username(referrer)}\n\n"
+        f"ID:\n{referrer.telegram_id}\n\n"
+        f"Приглашённый:\n{_user_name(referee)}\n\n"
+        f"Username:\n{_username(referee)}\n\n"
+        f"ID:\n{referee.telegram_id}\n\n"
+        f"Дата:\n{_fmt_date(datetime.now(timezone.utc))}"
+    )
+    await _send_to_admins(text, NotifyType.NEW_REGISTRATION)
+
+
 async def notify_admin_bank_payment(user: User, request, pkg) -> None:
     amount = f"{request.amount:,} ₽".replace(",", " ")
     text = (

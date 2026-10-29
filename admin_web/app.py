@@ -73,6 +73,7 @@ from services.brief_admin_service import (
 from services.brief_service import phones_from_storage
 from services.package_catalog import PACKAGES
 from services.promo_service import promo_hash_hint
+from services.referral_service import get_referral_stats, referral_code_for_user, referral_link_for_user
 from services.delivery_service import (
     commit_delivery,
     parse_contacts_file,
@@ -682,6 +683,40 @@ async def trial_status_update(
         return RedirectResponse(dest, status_code=303)
     except ValueError as exc:
         return RedirectResponse(f"/trials?msg={quote(str(exc))}", status_code=303)
+
+
+@app.get("/referrals", response_class=HTMLResponse)
+async def referrals_admin_page(request: Request):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        all_users = (await session.execute(select(User).order_by(User.id))).scalars().all()
+        rows = []
+        for u in all_users:
+            stats = await get_referral_stats(session, u.id)
+            if stats.invited <= 0 and not u.referred_by_user_id:
+                continue
+            code = u.referral_code or referral_code_for_user(u.id)
+            rows.append({"user": u, "code": code, "stats": stats})
+        rows.sort(key=lambda r: (r["stats"].paid, r["stats"].invited), reverse=True)
+        recent = (
+            await session.execute(
+                select(User)
+                .where(User.referred_by_user_id.isnot(None))
+                .options(selectinload(User.referred_by))
+                .order_by(User.created_at.desc())
+                .limit(50)
+            )
+        ).scalars().all()
+    return render(
+        request,
+        "referrals.html",
+        {
+            "rows": rows[:100],
+            "recent": recent,
+            "bot_username": settings.bot_username,
+        },
+    )
 
 
 @app.get("/bank-payments", response_class=HTMLResponse)

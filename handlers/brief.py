@@ -400,6 +400,12 @@ async def brief_confirm(callback: CallbackQuery, state: FSMContext) -> None:
     if draft.status == BriefRequestStatus.NOTIFY_FAILED.value:
         await callback.message.answer(BRIEF_FAILED_TEXT, reply_markup=brief_failed_keyboard())
     else:
+        async with async_session() as session:
+            db_user = await get_user_by_telegram_id(session, callback.from_user.id)
+            if db_user:
+                from services.referral_service import notify_referral_milestones
+
+                await notify_referral_milestones(session, db_user, event="brief_submitted")
         await callback.message.answer(
             BRIEF_SUCCESS_TEXT.format(request_id=draft.request_code),
             reply_markup=brief_success_keyboard(),

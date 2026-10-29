@@ -131,6 +131,19 @@ class User(Base):
     trial_entitlements: Mapped[list["TrialEntitlement"]] = relationship(back_populates="user")
     bank_payment_requests: Mapped[list["BankPaymentRequest"]] = relationship(back_populates="user")
     start_source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    referral_code: Mapped[Optional[str]] = mapped_column(String(32), unique=True, nullable=True, index=True)
+    referred_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    referred_by: Mapped[Optional["User"]] = relationship(
+        remote_side="User.id",
+        foreign_keys=[referred_by_user_id],
+        back_populates="referrals",
+    )
+    referrals: Mapped[list["User"]] = relationship(
+        back_populates="referred_by",
+        foreign_keys=[referred_by_user_id],
+    )
 
 
 class Tariff(Base):
