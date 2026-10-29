@@ -1,0 +1,3 @@
+# Сохраните как amvera.env на Mac, подставьте значения, в Amvera: Переменные → «Подгрузить .env»
+BOT_TOKEN=
+DATABASE_URL=

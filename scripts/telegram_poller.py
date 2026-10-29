@@ -9,27 +9,43 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from dotenv import load_dotenv
-
-load_dotenv(ROOT / ".env")
-load_dotenv(ROOT / ".env.migrate")
-
 import os
 
-if not os.getenv("DATABASE_URL") and os.getenv("TARGET_DATABASE_URL"):
-    os.environ["DATABASE_URL"] = os.getenv("TARGET_DATABASE_URL", "")
+from dotenv import load_dotenv
+
+
+def _bootstrap_env() -> None:
+    """Amvera: UI-переменные + файл из «Подгрузить .env» (/data/.env)."""
+    for path in (
+        Path("/data/.env"),
+        ROOT / ".env",
+        ROOT / ".env.migrate",
+    ):
+        if path.is_file():
+            load_dotenv(path, override=False)
+
+    if not os.getenv("DATABASE_URL") and os.getenv("TARGET_DATABASE_URL"):
+        os.environ["DATABASE_URL"] = os.getenv("TARGET_DATABASE_URL", "")
 
 
 def _require_env() -> None:
     missing = [k for k in ("BOT_TOKEN", "DATABASE_URL") if not (os.getenv(k) or "").strip()]
     if missing:
-        print(
-            "Amvera/ONREZA: задайте переменные окружения: " + ", ".join(missing),
-            file=sys.stderr,
+        hint = (
+            "Amvera: Переменные → BOT_TOKEN и DATABASE_URL (этап «Запуск»), "
+            "затем Управление → Перезапустить. Или «Подгрузить .env» в /data/.env"
         )
+        print(f"Не задано: {', '.join(missing)}. {hint}", file=sys.stderr)
+        if os.getenv("AMVERA"):
+            print(
+                f"Диагностика: AMVERA={os.getenv('AMVERA')!r}, "
+                f"/data/.env exists={Path('/data/.env').is_file()}",
+                file=sys.stderr,
+            )
         raise SystemExit(2)
 
 
+_bootstrap_env()
 _require_env()
 
 from database.database import init_db
