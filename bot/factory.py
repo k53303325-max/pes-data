@@ -93,6 +93,7 @@ def get_dispatcher() -> Dispatcher:
         chat_log = ChatLogMiddleware()
         _dp.message.middleware(chat_log)
         _dp.callback_query.middleware(chat_log)
+        _dp.include_router(start.router)
         _dp.include_router(menu.router)
         _dp.include_router(referral.router)
         _dp.include_router(packages.router)
@@ -106,7 +107,6 @@ def get_dispatcher() -> Dispatcher:
         _dp.include_router(project.router)
         _dp.include_router(competitors.router)
         _dp.include_router(brief.router)
-        _dp.include_router(start.router)
         _dp.include_router(fsm_fallback.router)
     return _dp
 
