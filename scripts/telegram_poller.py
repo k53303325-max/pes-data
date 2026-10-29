@@ -19,6 +19,19 @@ import os
 if not os.getenv("DATABASE_URL") and os.getenv("TARGET_DATABASE_URL"):
     os.environ["DATABASE_URL"] = os.getenv("TARGET_DATABASE_URL", "")
 
+
+def _require_env() -> None:
+    missing = [k for k in ("BOT_TOKEN", "DATABASE_URL") if not (os.getenv(k) or "").strip()]
+    if missing:
+        print(
+            "Amvera/ONREZA: задайте переменные окружения: " + ", ".join(missing),
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
+
+_require_env()
+
 from database.database import init_db
 from bot.polling_runner import run_telegram_polling
 from utils.logger import setup_logging, get_logger
