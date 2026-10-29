@@ -1,8 +1,19 @@
+from urllib.parse import urlparse
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from config.settings import settings
 from database.models import Base, Tariff
+
+
+def _postgres_connect_args(database_url: str) -> dict:
+    args: dict = {"timeout": 15, "command_timeout": 30}
+    host = (urlparse(database_url).hostname or "").lower()
+    if "neon.tech" in host or "supabase.co" in host or "sslmode=require" in database_url.lower():
+        args["ssl"] = True
+    return args
+
 
 connect_args: dict = {}
 engine_kwargs: dict = {"echo": False}
@@ -10,7 +21,7 @@ engine_kwargs: dict = {"echo": False}
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif settings.database_url.startswith("postgresql"):
-    connect_args = {"ssl": True, "timeout": 10, "command_timeout": 15}
+    connect_args = _postgres_connect_args(settings.database_url)
     if settings.is_vercel:
         engine_kwargs["poolclass"] = NullPool
 

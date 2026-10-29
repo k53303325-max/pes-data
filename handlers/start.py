@@ -153,24 +153,27 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
 
         logger.info("Return visit: telegram_id=%s status=%s", user.telegram_id, user.status)
         await _show_user_home(message, user)
-        try:
-            async with async_session() as session:
-                from payments.yookassa import sync_user_pending_payments
+        from payments.yookassa import is_yookassa_configured
 
-                activated = await asyncio.wait_for(
-                    sync_user_pending_payments(session, user.id),
-                    timeout=3.0,
-                )
-                if activated:
-                    _, order = activated
-                    await message.answer(payment_success_text(order.contact_limit))
-                    db_user = await get_user_by_telegram_id(session, message.from_user.id)
-                    if db_user:
-                        await _show_user_home(message, db_user)
-        except asyncio.TimeoutError:
-            logger.warning("YooKassa sync timeout on /start user_id=%s", user.id)
-        except Exception:
-            logger.exception("YooKassa sync failed on /start user_id=%s", user.id)
+        if is_yookassa_configured:
+            try:
+                async with async_session() as session:
+                    from payments.yookassa import sync_user_pending_payments
+
+                    activated = await asyncio.wait_for(
+                        sync_user_pending_payments(session, user.id),
+                        timeout=3.0,
+                    )
+                    if activated:
+                        _, order = activated
+                        await message.answer(payment_success_text(order.contact_limit))
+                        db_user = await get_user_by_telegram_id(session, message.from_user.id)
+                        if db_user:
+                            await _show_user_home(message, db_user)
+            except asyncio.TimeoutError:
+                logger.warning("YooKassa sync timeout on /start user_id=%s", user.id)
+            except Exception:
+                logger.exception("YooKassa sync failed on /start user_id=%s", user.id)
     except Exception as exc:
         logger.exception("Error in /start telegram_id=%s", message.from_user.id)
         from services.admin_notify_service import notify_admin_error

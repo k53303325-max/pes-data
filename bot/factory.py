@@ -117,8 +117,16 @@ async def ensure_telegram_webhook() -> None:
     if _webhook_ready or not settings.use_webhook or not settings.bot_token:
         return
 
+    app_url = (settings.app_url or "").rstrip("/")
+    if app_url.startswith("http://127.0.0.1") or app_url.startswith("http://localhost"):
+        logger.error(
+            "APP_URL не задан для webhook (сейчас %s). Задайте публичный URL в ONREZA env.",
+            app_url,
+        )
+        return
+
     bot = get_bot()
-    webhook_url = f"{settings.app_url}/webhook/telegram"
+    webhook_url = f"{app_url}/webhook/telegram"
     info = await bot.get_webhook_info()
     if info.url != webhook_url:
         await bot.set_webhook(webhook_url, drop_pending_updates=False)

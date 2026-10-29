@@ -73,7 +73,11 @@ class Settings:
 def get_settings() -> Settings:
     admin_telegram_id, admin_username = _parse_admin_settings()
     is_vercel = os.getenv("VERCEL") == "1"
-    is_onreza = os.getenv("ONREZA") == "1" or bool(_clean_env(os.getenv("NRZ_PROJECT_ID")))
+    is_onreza = (
+        os.getenv("ONREZA") == "1"
+        or bool(_clean_env(os.getenv("NRZ_PROJECT_ID")))
+        or os.getenv("USER") == "onreza"
+    )
     use_webhook = (
         is_vercel
         or is_onreza

@@ -133,7 +133,7 @@ async def _setup_telegram_webhook_once() -> None:
     try:
         import asyncio
 
-        await asyncio.wait_for(ensure_telegram_webhook(), timeout=8.0)
+        await asyncio.wait_for(ensure_telegram_webhook(), timeout=25.0)
     except Exception:
         logger.exception("Telegram webhook setup failed (non-fatal)")
 
@@ -218,7 +218,16 @@ async def init_db_middleware(request: Request, call_next):
 @app.get("/health")
 async def health():
     platform = "onreza" if settings.is_onreza else ("vercel" if settings.is_vercel else "local")
-    return {"ok": True, "platform": platform}
+    payload: dict = {"ok": True, "platform": platform, "app_url": settings.app_url}
+    if settings.bot_token:
+        try:
+            bot = get_bot()
+            info = await bot.get_webhook_info()
+            payload["telegram_webhook"] = info.url
+            payload["telegram_pending"] = info.pending_update_count
+        except Exception as exc:
+            payload["telegram_webhook_error"] = str(exc)[:200]
+    return payload
 
 
 @app.post("/webhook/telegram")
