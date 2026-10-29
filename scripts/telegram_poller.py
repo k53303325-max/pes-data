@@ -14,15 +14,28 @@ import os
 from dotenv import load_dotenv
 
 
+def _load_env_file(path: Path, *, override: bool) -> None:
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if not key or not value:
+            continue
+        if override or not (os.getenv(key) or "").strip():
+            os.environ[key] = value
+
+
 def _bootstrap_env() -> None:
     """Amvera: UI-переменные + файл из «Подгрузить .env» (/data/.env)."""
-    for path in (
-        Path("/data/.env"),
-        ROOT / ".env",
-        ROOT / ".env.migrate",
-    ):
-        if path.is_file():
-            load_dotenv(path, override=False)
+    os.environ.setdefault("PES_DATA_POLLER", "1")
+    _load_env_file(Path("/data/.env"), override=True)
+    load_dotenv(ROOT / ".env.migrate", override=False)
+    load_dotenv(ROOT / ".env", override=False)
 
     if not os.getenv("DATABASE_URL") and os.getenv("TARGET_DATABASE_URL"):
         os.environ["DATABASE_URL"] = os.getenv("TARGET_DATABASE_URL", "")
@@ -42,6 +55,14 @@ def _require_env() -> None:
                 f"/data/.env exists={Path('/data/.env').is_file()}",
                 file=sys.stderr,
             )
+        raise SystemExit(2)
+
+    db_url = os.environ["DATABASE_URL"].strip()
+    if not db_url.startswith(("postgres://", "postgresql://")):
+        print(
+            f"DATABASE_URL должен быть postgresql://… (сейчас: {db_url[:40]}…)",
+            file=sys.stderr,
+        )
         raise SystemExit(2)
 
 

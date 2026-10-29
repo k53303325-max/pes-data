@@ -37,7 +37,7 @@ def resolve_database_url() -> str:
         if value:
             return normalize_database_url(value)
 
-    if _is_vercel():
+    if _is_vercel() or os.getenv("AMVERA") == "1" or os.getenv("PES_DATA_POLLER") == "1":
         return ""
 
     from pathlib import Path

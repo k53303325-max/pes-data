@@ -1,3 +1,4 @@
+import os
 from urllib.parse import urlparse
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -30,8 +31,12 @@ elif settings.database_url.startswith("postgresql"):
     if settings.is_vercel:
         engine_kwargs["poolclass"] = NullPool
 
+_default_url = "sqlite+aiosqlite:///:memory:"
+if os.getenv("AMVERA") == "1" or os.getenv("PES_DATA_POLLER") == "1":
+    _default_url = "postgresql+asyncpg://invalid/local-only-set-DATABASE_URL"
+
 engine = create_async_engine(
-    settings.database_url or "sqlite+aiosqlite:///:memory:",
+    settings.database_url or _default_url,
     connect_args=connect_args,
     **engine_kwargs,
 )
