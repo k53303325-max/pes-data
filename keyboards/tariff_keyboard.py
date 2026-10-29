@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from keyboards.payment_keyboard import CB_MOCK_PAY_PREFIX, promo_button_row
