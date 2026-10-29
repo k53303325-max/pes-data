@@ -41,7 +41,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="💰 Пакеты и цены", callback_data=CB_MAIN_PACKAGES)],
         [InlineKeyboardButton(text="❓ Вопросы и ответы", callback_data=CB_MAIN_FAQ)],
         [InlineKeyboardButton(text="✉️ Связаться с командой", callback_data=CB_MAIN_CONTACT)],
-        [InlineKeyboardButton(text="🤝 Партнёрская программа", callback_data=CB_MAIN_REFERRAL)],
+        [InlineKeyboardButton(text="Приведи клиента · получи 10%", callback_data=CB_MAIN_REFERRAL)],
     ])
 
 

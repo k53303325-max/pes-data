@@ -277,6 +277,36 @@ def _migrate_projects(sync_conn) -> None:
         )
 
 
+def _migrate_referral_commissions(sync_conn) -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if not insp.has_table("referral_commissions"):
+        return
+
+
+def _migrate_bank_invoice_columns(sync_conn) -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if not insp.has_table("bank_payment_requests"):
+        return
+    cols = {c["name"] for c in insp.get_columns("bank_payment_requests")}
+    additions = [
+        ("payment_id", "INTEGER", "NULL"),
+        ("company_name", "VARCHAR(512)", "NULL"),
+        ("company_inn", "VARCHAR(12)", "NULL"),
+        ("invoice_email", "VARCHAR(255)", "NULL"),
+        ("requisites_file_id", "VARCHAR(128)", "NULL"),
+        ("requisites_file_name", "VARCHAR(255)", "NULL"),
+    ]
+    for name, col_type, default in additions:
+        if name not in cols:
+            sync_conn.execute(
+                text(f"ALTER TABLE bank_payment_requests ADD COLUMN {name} {col_type} DEFAULT {default}")
+            )
+
+
 def _migrate_users_referral(sync_conn) -> None:
     from sqlalchemy import inspect, text
 
@@ -288,6 +318,10 @@ def _migrate_users_referral(sync_conn) -> None:
         sync_conn.execute(text("ALTER TABLE users ADD COLUMN referral_code VARCHAR(32)"))
     if "referred_by_user_id" not in cols:
         sync_conn.execute(text("ALTER TABLE users ADD COLUMN referred_by_user_id INTEGER"))
+    if "partner_agreed_at" not in cols:
+        dialect = sync_conn.dialect.name
+        ts_type = "TIMESTAMP WITH TIME ZONE" if dialect == "postgresql" else "DATETIME"
+        sync_conn.execute(text(f"ALTER TABLE users ADD COLUMN partner_agreed_at {ts_type}"))
     dialect = sync_conn.dialect.name
     if dialect == "postgresql":
         sync_conn.execute(
@@ -321,6 +355,8 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_users_start_source)
         await conn.run_sync(_migrate_users_referral)
+        await conn.run_sync(_migrate_bank_invoice_columns)
+        await conn.run_sync(_migrate_referral_commissions)
         await conn.run_sync(_migrate_tariff_columns)
         await conn.run_sync(_migrate_payments_contact_limit)
         await conn.run_sync(_migrate_competitor_numbers)

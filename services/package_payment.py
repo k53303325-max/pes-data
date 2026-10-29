@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import BankPaymentRequest, BankPaymentStatus, User
+from database.models import User
 from payments.yookassa import PaymentLink, create_payment
 from services.package_catalog import PackageOffer, get_package
 from services.tariff_service import get_tariff
@@ -17,7 +17,9 @@ def format_payment_intro(pkg: PackageOffer) -> str:
         "Выберите способ оплаты:\n"
         "• карта или СБП — через ЮKassa;\n"
         "• промокод;\n"
-        "• с расчётного счёта — счёт выставит команда."
+        "• расчётный счёт — кнопка «Получить счёт на оплату».\n\n"
+        "Работаешь от компании или ИП? Можно оплатить на расчётный счёт. "
+        "Выставим счёт по реквизитам."
     )
 
 

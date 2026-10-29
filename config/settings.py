@@ -54,6 +54,8 @@ class Settings:
     is_vercel: bool
     promo_test_code: str
     allow_mock_payment: bool
+    referral_commission_percent: int
+    referral_payout_hold_days: int
 
 
 def get_settings() -> Settings:
@@ -88,6 +90,8 @@ def get_settings() -> Settings:
         allow_mock_payment=(
             os.getenv("ALLOW_MOCK_PAYMENT") == "1" and os.getenv("VERCEL") != "1"
         ),
+        referral_commission_percent=int(os.getenv("REFERRAL_COMMISSION_PERCENT", "10")),
+        referral_payout_hold_days=int(os.getenv("REFERRAL_PAYOUT_HOLD_DAYS", "14")),
     )
 
 

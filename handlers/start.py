@@ -117,7 +117,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
                 message.from_user.username,
                 message.from_user.first_name,
             )
-            if payload.marketing_source and not user.start_source:
+            if is_new and payload.marketing_source and not user.start_source:
                 user.start_source = payload.marketing_source
                 await session.commit()
                 await session.refresh(user)

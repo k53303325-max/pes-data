@@ -11,6 +11,7 @@
         <th>#</th>
         <th>Клиент</th>
         <th>Пакет</th>
+        <th>Компания / ИНН</th>
         <th>Сумма</th>
         <th>Статус</th>
         <th>Дата</th>
@@ -26,6 +27,7 @@
           {% if r.user.username %}<br>@{{ r.user.username }}{% endif %}
         </td>
         <td>{{ r.package_name }} ({{ r.contact_limit }})</td>
+        <td>{{ r.company_name or '—' }}<br>{% if r.company_inn %}ИНН {{ r.company_inn }}{% endif %}</td>
         <td>{{ "{:,}".format(r.amount).replace(",", " ") }} ₽</td>
         <td>{{ bank_labels.get(r.status, r.status) }}</td>
         <td>{{ r.created_at }}</td>

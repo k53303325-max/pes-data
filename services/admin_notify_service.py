@@ -326,15 +326,38 @@ async def notify_admin_referral_event(
 async def notify_admin_bank_payment(user: User, request, pkg) -> None:
     amount = f"{request.amount:,} ₽".replace(",", " ")
     text = (
-        "🏦 <b>Оплата с р/с</b>\n\n"
+        "🏦 <b>Счёт на оплату (р/с)</b>\n\n"
         f"Заявка:\n#{request.id}\n\n"
         f"Пакет:\n{html.escape(pkg.name)}\n\n"
         f"Контактов:\n{request.contact_limit}\n\n"
         f"Сумма:\n{amount}\n\n"
+        f"Компания:\n{html.escape(request.company_name or '—')}\n\n"
+        f"ИНН:\n{html.escape(request.company_inn or '—')}\n\n"
+        f"Email:\n{html.escape(request.invoice_email or '—')}\n\n"
+        f"Файл:\n{html.escape(request.requisites_file_name or '—')}\n\n"
         f"Клиент:\n{_user_name(user)}\n\n"
         f"Username:\n{_username(user)}\n\n"
         f"Telegram ID:\n{user.telegram_id}\n\n"
         f"Дата:\n{_fmt_date(request.created_at)}"
+    )
+    await _send_to_admins(text, NotifyType.PAYMENT)
+
+
+async def notify_admin_referral_commission(
+    partner: User,
+    referee: User,
+    commission,
+) -> None:
+    text = (
+        "🐾 <b>Реферальное начисление 10%</b>\n\n"
+        f"Партнёр:\n{_user_name(partner)}\n\n"
+        f"Username:\n{_username(partner)}\n\n"
+        f"Клиент:\n{_user_name(referee)}\n\n"
+        f"Username:\n{_username(referee)}\n\n"
+        f"Оплата:\n{commission.paid_amount} ₽\n\n"
+        f"Комиссия:\n{commission.commission_amount} ₽\n\n"
+        f"Статус:\n{html.escape(commission.status)}\n\n"
+        f"Доступно к выплате с:\n{_fmt_date(commission.eligible_at)}"
     )
     await _send_to_admins(text, NotifyType.PAYMENT)
 

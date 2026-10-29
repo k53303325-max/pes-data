@@ -31,6 +31,7 @@ TRIAL_STATUS_LABELS = {
 
 BANK_STATUS_LABELS = {
     "new": "Новая",
+    "awaiting_payment": "Ожидает оплаты",
     "invoiced": "Счёт выставлен",
     "paid": "Оплачено",
     "canceled": "Отменена",
@@ -101,10 +102,15 @@ async def update_bank_payment_status(
         raise ValueError("Заявка не найдена")
     if status not in BANK_STATUS_LABELS:
         raise ValueError("Недопустимый статус")
-    row.status = status
     if admin_note is not None:
         row.admin_note = admin_note.strip() or None
-    await session.commit()
+    if status == "paid":
+        from services.bank_payment_service import confirm_bank_payment_paid
+
+        await confirm_bank_payment_paid(session, row)
+    else:
+        row.status = status
+        await session.commit()
     await session.refresh(row)
     return row
 

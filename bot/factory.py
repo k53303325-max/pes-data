@@ -19,6 +19,7 @@ from handlers import (
     faq,
     menu,
     referral,
+    bank_invoice,
     orders,
     package_payment,
     packages,
@@ -95,6 +96,7 @@ def get_dispatcher() -> Dispatcher:
         _dp.include_router(referral.router)
         _dp.include_router(packages.router)
         _dp.include_router(package_payment.router)
+        _dp.include_router(bank_invoice.router)
         _dp.include_router(faq.router)
         _dp.include_router(tariffs.router)
         _dp.include_router(orders.router)

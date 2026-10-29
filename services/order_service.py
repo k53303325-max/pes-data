@@ -77,19 +77,9 @@ async def activate_order_from_payment(
     )
 
     try:
-        from sqlalchemy import func
+        from services.referral_commission_service import create_commission_for_payment
 
-        paid_before = await session.scalar(
-            select(func.count(Payment.id)).where(
-                Payment.user_id == user.id,
-                Payment.status == PaymentStatus.PAID.value,
-                Payment.id != payment.id,
-            )
-        )
-        if not paid_before:
-            from services.referral_service import notify_referral_milestones
-
-            await notify_referral_milestones(session, user, event="paid")
+        await create_commission_for_payment(session, payment, order)
     except Exception:
         pass
 

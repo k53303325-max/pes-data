@@ -127,20 +127,8 @@ async def notify_referral_milestones(session: AsyncSession, referee: User, *, ev
         return
 
     from services.admin_notify_service import notify_admin_referral_event
-    from services.telegram_notify import _telegram_post
 
     if event == "registered":
         await notify_admin_referral_event(referrer, referee, event="registration")
     elif event == "brief_submitted":
         await notify_admin_referral_event(referrer, referee, event="brief")
-    elif event == "paid":
-        await notify_admin_referral_event(referrer, referee, event="payment")
-        text = (
-            "🤝 <b>Партнёрская программа</b>\n\n"
-            "По вашей ссылке клиент оплатил пакет. "
-            "Команда свяжется с вами по условиям бонуса."
-        )
-        await _telegram_post(
-            "sendMessage",
-            json={"chat_id": referrer.telegram_id, "text": text, "parse_mode": "HTML"},
-        )

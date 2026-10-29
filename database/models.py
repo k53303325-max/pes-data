@@ -88,9 +88,18 @@ class TrialEntitlementStatus(str, Enum):
 
 class BankPaymentStatus(str, Enum):
     NEW = "new"
+    AWAITING_PAYMENT = "awaiting_payment"
     INVOICED = "invoiced"
     PAID = "paid"
     CANCELED = "canceled"
+
+
+class ReferralCommissionStatus(str, Enum):
+    PENDING = "pending"
+    ELIGIBLE = "eligible"
+    PAID_OUT = "paid_out"
+    REVERSED = "reversed"
+    REVIEW = "review"
 
 
 class AdminNotification(Base):
@@ -143,6 +152,13 @@ class User(Base):
     referrals: Mapped[list["User"]] = relationship(
         back_populates="referred_by",
         foreign_keys=[referred_by_user_id],
+    )
+    partner_agreed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    partner_commissions: Mapped[list["ReferralCommission"]] = relationship(
+        back_populates="partner",
+        foreign_keys="ReferralCommission.partner_user_id",
     )
 
 
@@ -303,16 +319,47 @@ class FsmStorageEntry(Base):
     data_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
+class ReferralCommission(Base):
+    __tablename__ = "referral_commissions"
+    __table_args__ = (UniqueConstraint("payment_id", name="uq_referral_commission_payment"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    partner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    referee_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    paid_amount: Mapped[int] = mapped_column(Integer)
+    commission_amount: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(
+        String(20), default=ReferralCommissionStatus.PENDING.value, index=True
+    )
+    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    eligible_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    partner: Mapped["User"] = relationship(
+        back_populates="partner_commissions",
+        foreign_keys=[partner_user_id],
+    )
+
+
 class BankPaymentRequest(Base):
     __tablename__ = "bank_payment_requests"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id"), nullable=True, unique=True)
     package_code: Mapped[str] = mapped_column(String(32))
     package_name: Mapped[str] = mapped_column(String(100))
     contact_limit: Mapped[int] = mapped_column(Integer)
     amount: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default=BankPaymentStatus.NEW.value, index=True)
+    company_name: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    company_inn: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+    invoice_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    requisites_file_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    requisites_file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
