@@ -1,8 +1,0 @@
-[project]
-name = "pes-data"
-version = "1.0.0"
-requires-python = ">=3.12"
-dependencies = []
-
-[tool.vercel]
-entrypoint = "admin_web.app:app"

@@ -3,8 +3,16 @@
   "env": {
     "PROMO_TEST_CODE": "PESDATA100"
   },
+  "builds": [
+    { "src": "api/index.py", "use": "@vercel/python" },
+    { "src": "public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/static/(.*)", "dest": "/public/static/$1" },
+    { "src": "/(.*)", "dest": "/api/index.py" }
+  ],
   "functions": {
-    "admin_web/app.py": {
+    "api/index.py": {
       "maxDuration": 30
     }
   }

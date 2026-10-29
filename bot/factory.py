@@ -13,23 +13,6 @@ from bot.chat_log_middleware import ChatLogMiddleware, OutgoingChatLogMiddleware
 
 from config.settings import settings
 from services.messages import BOT_SYSTEM_ERROR_ALERT, BOT_SYSTEM_ERROR_TEXT
-from handlers import (
-    brief,
-    competitors,
-    faq,
-    menu,
-    referral,
-    bank_invoice,
-    fsm_fallback,
-    orders,
-    package_payment,
-    packages,
-    payments,
-    profile,
-    project,
-    start,
-    tariffs,
-)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +38,24 @@ def get_bot() -> Bot:
 def get_dispatcher() -> Dispatcher:
     global _dp
     if _dp is None:
+        from handlers import (
+            bank_invoice,
+            brief,
+            competitors,
+            faq,
+            fsm_fallback,
+            menu,
+            orders,
+            package_payment,
+            packages,
+            payments,
+            profile,
+            project,
+            referral,
+            start,
+            tariffs,
+        )
+
         storage = PostgresStorage() if settings.database_url.startswith("postgresql") else MemoryStorage()
         _dp = Dispatcher(storage=storage)
 
