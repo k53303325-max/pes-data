@@ -60,6 +60,7 @@ from services.messages import (
     TRIAL_BLOCK_TELEGRAM,
 )
 from services.user_service import get_user_by_telegram_id
+from utils.fsm_filters import NoStateFilter
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -127,6 +128,7 @@ async def brief_business(message: Message, state: FSMContext) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, message.from_user.id)
         if not user:
+            await message.answer(BOT_SYSTEM_ERROR_TEXT)
             return
         draft = await get_draft_brief(session, user.id)
         if not draft:
@@ -136,6 +138,14 @@ async def brief_business(message: Message, state: FSMContext) -> None:
 
     await state.set_state(BriefState.sales)
     await message.answer(BRIEF_Q2_TEXT, reply_markup=brief_sales_keyboard())
+
+
+@router.message(BriefState.sales, F.text)
+async def brief_sales_text_hint(message: Message) -> None:
+    await message.answer(
+        "Выберите вариант кнопкой ниже 👇",
+        reply_markup=brief_sales_keyboard(),
+    )
 
 
 @router.callback_query(F.data.startswith(CB_BRIEF_SALES_PREFIX), BriefState.sales)
@@ -198,9 +208,11 @@ async def brief_competitors(message: Message, state: FSMContext) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, message.from_user.id)
         if not user:
+            await message.answer(BOT_SYSTEM_ERROR_TEXT)
             return
         draft = await get_draft_brief(session, user.id)
         if not draft:
+            await message.answer("Черновик брифа не найден. Нажмите /start → «Проверить мою нишу».")
             return
         draft.competitors_need_help = False
         draft.competitor_phones_raw = message.text.strip()
@@ -355,28 +367,26 @@ async def brief_edit_field(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == CB_BRIEF_CONFIRM)
 @router.callback_query(F.data == CB_BRIEF_RESUBMIT)
 async def brief_confirm(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer()
             return
         draft = await get_draft_brief(session, user.id)
         if not draft:
-            await callback.answer("Бриф не найден", show_alert=True)
+            await callback.message.answer("Бриф не найден. Начните с /start.")
             return
         if draft.status == BriefRequestStatus.SUBMITTED.value and draft.admin_notified:
             await callback.message.answer(
                 BRIEF_SUCCESS_TEXT.format(request_id=draft.request_code),
                 reply_markup=brief_success_keyboard(),
             )
-            await callback.answer()
             return
 
         if draft.is_trial and draft.inn and not draft.inn_manual_review:
             check = await check_trial_inn(session, user, draft.inn)
             if not check.ok:
                 await _trial_block_message(callback.message, check.reason or "")
-                await callback.answer()
                 return
 
         try:
@@ -393,7 +403,6 @@ async def brief_confirm(callback: CallbackQuery, state: FSMContext) -> None:
             draft.status = BriefRequestStatus.NOTIFY_FAILED.value
             await session.commit()
             await callback.message.answer(BRIEF_FAILED_TEXT, reply_markup=brief_failed_keyboard())
-            await callback.answer()
             return
 
     await state.clear()
@@ -410,14 +419,10 @@ async def brief_confirm(callback: CallbackQuery, state: FSMContext) -> None:
             BRIEF_SUCCESS_TEXT.format(request_id=draft.request_code),
             reply_markup=brief_success_keyboard(),
         )
-    await callback.answer()
 
 
-@router.message(F.text)
+@router.message(F.text, NoStateFilter())
 async def brief_recover_from_draft(message: Message, state: FSMContext) -> None:
-    if await state.get_state():
-        return
-
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, message.from_user.id)
         if not user:

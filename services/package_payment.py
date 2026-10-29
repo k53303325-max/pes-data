@@ -42,25 +42,6 @@ async def create_package_yookassa_payment(
     )
 
 
-async def create_bank_payment_request(
-    session: AsyncSession,
-    user: User,
-    pkg: PackageOffer,
-) -> BankPaymentRequest:
-    row = BankPaymentRequest(
-        user_id=user.id,
-        package_code=pkg.code,
-        package_name=pkg.name,
-        contact_limit=pkg.contact_count,
-        amount=pkg.price,
-        status=BankPaymentStatus.NEW.value,
-    )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
-
-
 def resolve_package(code: str) -> PackageOffer:
     pkg = get_package(code)
     if not pkg or pkg.is_trial:

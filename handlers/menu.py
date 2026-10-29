@@ -32,9 +32,9 @@ async def show_main_menu_message(message, *, edit: bool = False) -> None:
 
 @router.callback_query(F.data == CB_MAIN_MENU)
 async def cb_main_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     await state.clear()
     await show_main_menu_message(callback.message, edit=True)
-    await callback.answer()
 
 
 @router.callback_query(F.data.in_({CB_MAIN_HOW, "how_it_works"}))

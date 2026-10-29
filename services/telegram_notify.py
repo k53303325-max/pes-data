@@ -27,8 +27,9 @@ async def _telegram_post(method: str, **kwargs) -> tuple[bool, str]:
         return False, "BOT_TOKEN не задан"
 
     url = TELEGRAM_API.format(token=settings.bot_token, method=method)
+    timeout = aiohttp.ClientTimeout(total=15)
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, **kwargs) as resp:
                 body = await resp.text()
                 if resp.status == 200:

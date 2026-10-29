@@ -52,15 +52,17 @@ async def cb_create_order(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer("Сначала укажите количество контактов", show_alert=True)
         return
 
+    await callback.answer()
+
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
+            await callback.message.answer("Нажмите /start")
             return
 
         tariff = await get_tariff(session, tariff_id)
         if not tariff:
-            await callback.answer("Тариф недоступен", show_alert=True)
+            await callback.message.answer("Тариф недоступен")
             return
 
         try:
@@ -72,7 +74,7 @@ async def cb_create_order(callback: CallbackQuery, state: FSMContext) -> None:
                 contact_limit=contact_limit,
             )
         except ValueError as exc:
-            await callback.answer(str(exc)[:200], show_alert=True)
+            await callback.message.answer(str(exc)[:200])
             return
         except Exception:
             logger.exception("Payment creation failed")
@@ -83,7 +85,7 @@ async def cb_create_order(callback: CallbackQuery, state: FSMContext) -> None:
                 user_label=str(callback.from_user.id),
                 error_message="create_order",
             )
-            await callback.answer(BOT_SYSTEM_ERROR_ALERT, show_alert=True)
+            await callback.message.answer(BOT_SYSTEM_ERROR_ALERT)
             return
 
     quote = quote_for_quantity(contact_limit)
@@ -91,7 +93,6 @@ async def cb_create_order(callback: CallbackQuery, state: FSMContext) -> None:
         format_purchase_confirm_text(quote),
         reply_markup=purchase_confirm_keyboard(tariff_id, link),
     )
-    await callback.answer()
 
 
 async def handle_payment_success_callback(

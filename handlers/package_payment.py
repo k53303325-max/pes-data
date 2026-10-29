@@ -30,13 +30,15 @@ async def cb_pay_package(callback: CallbackQuery) -> None:
         await callback.answer(str(exc), show_alert=True)
         return
 
+    await callback.answer()
+
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
+            await callback.message.answer("Нажмите /start")
             return
         if await get_active_order(session, user.id):
-            await callback.answer("Сначала завершите текущий пакет", show_alert=True)
+            await callback.message.answer("Сначала завершите текущий пакет")
             return
         try:
             from services.bank_payment_service import cancel_user_pending_payments
@@ -44,7 +46,7 @@ async def cb_pay_package(callback: CallbackQuery) -> None:
             await cancel_user_pending_payments(session, user.id)
             link = await create_package_yookassa_payment(session, user, pkg)
         except ValueError as exc:
-            await callback.answer(str(exc)[:200], show_alert=True)
+            await callback.message.answer(str(exc)[:200])
             return
         except Exception:
             logger.exception("Package payment failed code=%s", code)
@@ -55,11 +57,10 @@ async def cb_pay_package(callback: CallbackQuery) -> None:
                 user_label=str(callback.from_user.id),
                 error_message=code,
             )
-            await callback.answer(BOT_SYSTEM_ERROR_ALERT, show_alert=True)
+            await callback.message.answer(BOT_SYSTEM_ERROR_ALERT)
             return
 
     await callback.message.edit_text(
         format_payment_intro(pkg),
         reply_markup=package_payment_keyboard(link, code),
     )
-    await callback.answer()

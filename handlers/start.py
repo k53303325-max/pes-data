@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.filters.command import CommandObject
@@ -152,7 +154,14 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         async with async_session() as session:
             from payments.yookassa import sync_user_pending_payments
 
-            activated = await sync_user_pending_payments(session, user.id)
+            try:
+                activated = await asyncio.wait_for(
+                    sync_user_pending_payments(session, user.id),
+                    timeout=8.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("YooKassa sync timeout on /start user_id=%s", user.id)
+                activated = None
             if activated:
                 _, order = activated
                 await message.answer(
@@ -174,6 +183,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
 
 @router.callback_query(F.data == CB_BACK)
 async def cb_back(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     await state.clear()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
@@ -184,7 +194,14 @@ async def cb_back(callback: CallbackQuery, state: FSMContext) -> None:
         else:
             from payments.yookassa import sync_user_pending_payments
 
-            activated = await sync_user_pending_payments(session, user.id)
+            try:
+                activated = await asyncio.wait_for(
+                    sync_user_pending_payments(session, user.id),
+                    timeout=8.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("YooKassa sync timeout on back user_id=%s", user.id)
+                activated = None
             if activated:
                 _, order = activated
                 await callback.message.answer(
@@ -192,4 +209,3 @@ async def cb_back(callback: CallbackQuery, state: FSMContext) -> None:
                 )
                 user = await get_user_by_telegram_id(session, callback.from_user.id)
             await _show_user_home(callback.message, user, edit=True)
-    await callback.answer()

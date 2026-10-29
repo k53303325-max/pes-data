@@ -204,7 +204,7 @@ def _yookassa_auth_header() -> str:
     return f"Basic {token}"
 
 
-async def fetch_yookassa_payment(external_id: str) -> dict | None:
+async def fetch_yookassa_payment(external_id: str, *, timeout_sec: float = 15) -> dict | None:
     """Запрашивает актуальный статус платежа в ЮKassa."""
     if not _yookassa_configured() or not external_id or external_id.startswith("mock_"):
         return None
@@ -214,7 +214,7 @@ async def fetch_yookassa_payment(external_id: str) -> dict | None:
         "Content-Type": "application/json",
     }
     url = f"{YOOKASSA_API}/{external_id}"
-    timeout = aiohttp.ClientTimeout(total=15)
+    timeout = aiohttp.ClientTimeout(total=timeout_sec)
     try:
         async with aiohttp.ClientSession(timeout=timeout) as http:
             async with http.get(url, headers=headers) as resp:
@@ -246,7 +246,7 @@ async def sync_pending_payment(
     if not payment.external_id or payment.external_id.startswith("mock_"):
         return None
 
-    yoo_payment = await fetch_yookassa_payment(payment.external_id)
+    yoo_payment = await fetch_yookassa_payment(payment.external_id, timeout_sec=8)
     if not yoo_payment:
         return None
     if yoo_payment.get("status") != "succeeded":

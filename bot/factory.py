@@ -20,6 +20,7 @@ from handlers import (
     menu,
     referral,
     bank_invoice,
+    fsm_fallback,
     orders,
     package_payment,
     packages,
@@ -106,6 +107,7 @@ def get_dispatcher() -> Dispatcher:
         _dp.include_router(competitors.router)
         _dp.include_router(brief.router)
         _dp.include_router(start.router)
+        _dp.include_router(fsm_fallback.router)
     return _dp
 
 
