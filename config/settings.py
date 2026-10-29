@@ -17,6 +17,16 @@ def _clean_env(value: str | None) -> str:
     return value.strip().strip('"').strip("'")
 
 
+def _int_env(key: str, default: int) -> int:
+    raw = _clean_env(os.getenv(key))
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 def _parse_admin_settings() -> tuple[int, str]:
     admin_id_raw = _clean_env(os.getenv("ADMIN_ID", "0")) or "0"
     admin_username = _clean_env(os.getenv("ADMIN_USERNAME", "")).lstrip("@")
@@ -71,17 +81,17 @@ def get_settings() -> Settings:
         yookassa_secret_key=_clean_env(os.getenv("YOOKASSA_SECRET_KEY")),
         yookassa_return_url=resolve_yookassa_return_url(),
         webhook_host=os.getenv("WEBHOOK_HOST", "0.0.0.0"),
-        webhook_port=int(os.getenv("WEBHOOK_PORT", "8080")),
+        webhook_port=_int_env("WEBHOOK_PORT", 8080),
         yookassa_webhook_path=os.getenv("YOOKASSA_WEBHOOK_PATH", "/yookassa/webhook"),
-        add_rate_limit=int(os.getenv("ADD_RATE_LIMIT", "5")),
-        add_rate_window=int(os.getenv("ADD_RATE_WINDOW", "60")),
+        add_rate_limit=_int_env("ADD_RATE_LIMIT", 5),
+        add_rate_window=_int_env("ADD_RATE_WINDOW", 60),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_file=BASE_DIR / os.getenv("LOG_FILE", "logs/bot.log"),
         admin_login=os.getenv("ADMIN_LOGIN", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "admin123"),
         admin_secret_key=os.getenv("ADMIN_SECRET_KEY", "change-me-secret-key"),
         admin_host=os.getenv("ADMIN_HOST", "127.0.0.1"),
-        admin_port=int(os.getenv("ADMIN_PORT", "8000")),
+        admin_port=_int_env("ADMIN_PORT", 8000),
         is_vercel=os.getenv("VERCEL") == "1",
         promo_test_code=os.getenv(
             "PROMO_TEST_CODE",
@@ -90,8 +100,8 @@ def get_settings() -> Settings:
         allow_mock_payment=(
             os.getenv("ALLOW_MOCK_PAYMENT") == "1" and os.getenv("VERCEL") != "1"
         ),
-        referral_commission_percent=int(os.getenv("REFERRAL_COMMISSION_PERCENT", "10")),
-        referral_payout_hold_days=int(os.getenv("REFERRAL_PAYOUT_HOLD_DAYS", "14")),
+        referral_commission_percent=_int_env("REFERRAL_COMMISSION_PERCENT", 10),
+        referral_payout_hold_days=_int_env("REFERRAL_PAYOUT_HOLD_DAYS", 14),
     )
 
 
