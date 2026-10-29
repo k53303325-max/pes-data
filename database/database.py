@@ -10,7 +10,12 @@ from database.models import Base, Tariff
 def _postgres_connect_args(database_url: str) -> dict:
     args: dict = {"timeout": 15, "command_timeout": 30}
     host = (urlparse(database_url).hostname or "").lower()
-    if "neon.tech" in host or "supabase.co" in host or "sslmode=require" in database_url.lower():
+    if (
+        "neon.tech" in host
+        or "kaiki.ru" in host
+        or "supabase.co" in host
+        or "sslmode=require" in database_url.lower()
+    ):
         args["ssl"] = True
     return args
 

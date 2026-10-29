@@ -22,7 +22,8 @@ server = "uvicorn"
 
 | Переменная | Назначение |
 |------------|------------|
-| `ONREZA` | `1` — включает webhook-режим бота |
+| `ONREZA` | `1` — хостинг ONREZA (бот по умолчанию через **long polling**, не webhook) |
+| `TELEGRAM_WEBHOOK` | `1` — только если нужен webhook вместо polling (обычно не нужен) |
 | `APP_URL` | Публичный URL приложения **без** слэша в конце, например `https://ваш-проект.onreza.app` |
 | `BOT_TOKEN` | Токен @Pesdata_bot |
 | `DATABASE_URL` | PostgreSQL (`postgresql://…`) |
@@ -69,3 +70,19 @@ python run_admin.py
 ```
 
 Polling-бот (без webhook): `python main.py` — только для разработки.
+
+## Новая база ONREZA + старые пользователи (Neon)
+
+1. Создай Postgres на ONREZA → скопируй `DATABASE_URL` в **TARGET**.
+2. Neon → connection string в **SOURCE** (`POSTGRES_URL_NON_POOLING`).
+3. На Mac:
+
+```bash
+export SOURCE_DATABASE_URL='postgresql://...neon...'
+export TARGET_DATABASE_URL='postgresql://...onreza...'
+./venv/bin/python scripts/migrate_old_database.py
+```
+
+4. В ONREZA оставь **TARGET** в `DATABASE_URL` → Redeploy.
+
+Пользователи с одинаковым Telegram не дублируются (склеиваются по `telegram_id`).

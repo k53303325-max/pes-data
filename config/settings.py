@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 import os
@@ -64,6 +66,7 @@ class Settings:
     is_vercel: bool
     is_onreza: bool
     use_webhook: bool
+    telegram_polling: bool
     promo_test_code: str
     allow_mock_payment: bool
     referral_commission_percent: int
@@ -78,17 +81,27 @@ def get_settings() -> Settings:
         or bool(_clean_env(os.getenv("NRZ_PROJECT_ID")))
         or os.getenv("USER") == "onreza"
     )
+    database_url = resolve_database_url()
+    hosted_on_onreza_db = "kaiki.ru" in database_url
+    onreza_host = is_onreza or hosted_on_onreza_db
+    telegram_polling = (
+        os.getenv("TELEGRAM_POLLING") == "1"
+        or (onreza_host and os.getenv("TELEGRAM_WEBHOOK") != "1")
+    )
     use_webhook = (
-        is_vercel
-        or is_onreza
-        or os.getenv("WEBHOOK_MODE") == "1"
+        (
+            is_vercel
+            or os.getenv("WEBHOOK_MODE") == "1"
+            or (onreza_host and os.getenv("TELEGRAM_WEBHOOK") == "1")
+        )
+        and not telegram_polling
     )
     return Settings(
         bot_token=_clean_env(os.getenv("BOT_TOKEN")),
         bot_username=_clean_env(os.getenv("BOT_USERNAME", "Pesdata_bot")).lstrip("@"),
         admin_telegram_id=admin_telegram_id,
         admin_username=admin_username,
-        database_url=resolve_database_url(),
+        database_url=database_url,
         app_url=get_app_url(),
         yookassa_shop_id=_clean_env(os.getenv("YOOKASSA_SHOP_ID")),
         yookassa_secret_key=_clean_env(os.getenv("YOOKASSA_SECRET_KEY")),
@@ -108,6 +121,7 @@ def get_settings() -> Settings:
         is_vercel=is_vercel,
         is_onreza=is_onreza,
         use_webhook=use_webhook,
+        telegram_polling=telegram_polling,
         promo_test_code=os.getenv(
             "PROMO_TEST_CODE",
             "PESDATA100",

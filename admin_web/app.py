@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,7 +8,7 @@ from urllib.parse import quote
 
 from typing import Optional
 
-from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -106,17 +107,31 @@ def render(request: Request, name: str, context: dict | None = None):
     return templates.TemplateResponse(request, name, context or {})
 
 _db_initialized = False
+_polling_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def _app_lifespan(_application: FastAPI):
+    global _polling_task
+
     try:
         await _ensure_db()
     except Exception:
         logger.exception("Startup init_db failed")
-    if settings.use_webhook and settings.bot_token:
-        await _setup_telegram_webhook_once()
+    if settings.bot_token:
+        if settings.telegram_polling:
+            from bot.polling_runner import run_telegram_polling
+
+            _polling_task = asyncio.create_task(run_telegram_polling())
+        elif settings.use_webhook:
+            asyncio.create_task(_setup_telegram_webhook_once())
     yield
+    if _polling_task and not _polling_task.done():
+        _polling_task.cancel()
+        try:
+            await _polling_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Пёс Дата Admin", lifespan=_app_lifespan)
@@ -190,7 +205,12 @@ STATUS_LABELS = {
 
 @app.middleware("http")
 async def init_db_middleware(request: Request, call_next):
-    if request.url.path == "/health":
+    if request.url.path in ("/health", "/webhook/telegram"):
+        if request.url.path == "/webhook/telegram" and not _db_initialized:
+            try:
+                await asyncio.wait_for(_ensure_db(), timeout=10.0)
+            except Exception as exc:
+                logger.error("init_db for webhook failed: %s", exc)
         return await call_next(request)
     if settings.is_vercel and not settings.database_url:
         if request.url.path in ("/webhook/telegram", settings.yookassa_webhook_path):
@@ -216,39 +236,55 @@ async def init_db_middleware(request: Request, call_next):
 
 
 @app.get("/health")
-async def health():
+async def health(deep: bool = False):
     platform = "onreza" if settings.is_onreza else ("vercel" if settings.is_vercel else "local")
-    payload: dict = {"ok": True, "platform": platform, "app_url": settings.app_url}
-    if settings.bot_token:
+    payload: dict = {
+        "ok": True,
+        "platform": platform,
+        "app_url": settings.app_url,
+        "telegram_mode": "polling" if settings.telegram_polling else "webhook",
+        "db_ready": _db_initialized,
+    }
+    if deep and settings.bot_token and not settings.telegram_polling:
         try:
             bot = get_bot()
-            info = await bot.get_webhook_info()
+            info = await asyncio.wait_for(bot.get_webhook_info(), timeout=5.0)
             payload["telegram_webhook"] = info.url
             payload["telegram_pending"] = info.pending_update_count
+            if info.last_error_message:
+                payload["telegram_last_error"] = info.last_error_message[:200]
         except Exception as exc:
             payload["telegram_webhook_error"] = str(exc)[:200]
     return payload
 
 
-@app.post("/webhook/telegram")
-async def telegram_webhook(request: Request):
-    """Telegram Bot webhook — работает на Vercel без polling."""
+async def _process_telegram_update(data: dict) -> None:
     from aiogram.types import Update
 
-    if not settings.bot_token:
-        return {"ok": False, "error": "BOT_TOKEN not set"}
-
-    await _setup_telegram_webhook_once()
-
     try:
-        data = await request.json()
         bot = get_bot()
         dp = get_dispatcher()
         update = Update.model_validate(data, context={"bot": bot})
         await dp.feed_update(bot, update)
     except Exception:
-        logger.exception("Telegram webhook failed")
-        return {"ok": False, "error": "handler_failed"}
+        logger.exception("Telegram update processing failed")
+
+
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Telegram Bot webhook — быстрый 200 OK, обработка в фоне."""
+    if settings.telegram_polling:
+        return {"ok": True}
+    if not settings.bot_token:
+        return {"ok": False, "error": "BOT_TOKEN not set"}
+
+    try:
+        data = await request.json()
+    except Exception:
+        logger.warning("Telegram webhook: invalid JSON")
+        return {"ok": True}
+
+    background_tasks.add_task(_process_telegram_update, data)
     return {"ok": True}
 
 

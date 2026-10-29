@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -25,7 +27,7 @@ _webhook_ready = False
 def get_bot() -> Bot:
     global _bot
     if _bot is None:
-        session = AiohttpSession()
+        session = AiohttpSession(timeout=30)
         session.middleware(OutgoingChatLogMiddleware())
         _bot = Bot(
             token=settings.bot_token,
@@ -127,27 +129,43 @@ async def ensure_telegram_webhook() -> None:
 
     bot = get_bot()
     webhook_url = f"{app_url}/webhook/telegram"
-    info = await bot.get_webhook_info()
-    if info.url != webhook_url:
-        await bot.set_webhook(webhook_url, drop_pending_updates=False)
-        logger.info("Telegram webhook set: %s", webhook_url)
-
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Главное меню"),
-        BotCommand(command="profile", description="Мой пакет"),
-    ])
     try:
-        await bot.set_my_short_description(
-            "Контакты для телефонных продаж. Проверьте нишу: бизнес → конкуренты → подбор."
+        info = await asyncio.wait_for(bot.get_webhook_info(), timeout=10.0)
+        if info.url != webhook_url:
+            await asyncio.wait_for(
+                bot.set_webhook(webhook_url, drop_pending_updates=False),
+                timeout=10.0,
+            )
+            logger.info("Telegram webhook set: %s", webhook_url)
+    except Exception:
+        logger.exception("Telegram webhook sync failed (set URL manually if needed)")
+
+    _webhook_ready = True
+
+    try:
+        await asyncio.wait_for(
+            bot.set_my_commands([
+                BotCommand(command="start", description="Главное меню"),
+                BotCommand(command="profile", description="Мой пакет"),
+            ]),
+            timeout=8.0,
         )
-        await bot.set_my_description(
-            "Пёс Дата помогает бизнесу проверить дополнительный источник контактов "
-            "для телефонных продаж.\n\n"
-            "Здесь можно узнать, как работает сервис, посмотреть пакеты и отправить "
-            "вводные для проверки своей ниши.\n\n"
-            "Контакт — это номер потенциального клиента. Его потребность и готовность "
-            "покупать проверяет ваш отдел продаж."
+        await asyncio.wait_for(
+            bot.set_my_short_description(
+                "Контакты для телефонных продаж. Проверьте нишу: бизнес → конкуренты → подбор."
+            ),
+            timeout=8.0,
+        )
+        await asyncio.wait_for(
+            bot.set_my_description(
+                "Пёс Дата помогает бизнесу проверить дополнительный источник контактов "
+                "для телефонных продаж.\n\n"
+                "Здесь можно узнать, как работает сервис, посмотреть пакеты и отправить "
+                "вводные для проверки своей ниши.\n\n"
+                "Контакт — это номер потенциального клиента. Его потребность и готовность "
+                "покупать проверяет ваш отдел продаж."
+            ),
+            timeout=8.0,
         )
     except Exception:
-        logger.exception("Failed to set bot profile text")
-    _webhook_ready = True
+        logger.exception("Failed to set bot profile text (non-fatal)")
