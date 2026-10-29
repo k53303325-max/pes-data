@@ -12,4 +12,5 @@ build:
   useCache: true
 
 run:
-  scriptName: scripts/telegram_poller.py
+  # Тариф «Пробный» (0.1 GB) не хватает — нужен «Начальный» (0.5 GB, ~290 ₽/мес)
+  command: env MALLOC_ARENA_MAX=2 PYTHONDONTWRITEBYTECODE=1 python3 -O scripts/telegram_poller.py

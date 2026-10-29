@@ -28,7 +28,7 @@ if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif settings.database_url.startswith("postgresql"):
     connect_args = _postgres_connect_args(settings.database_url)
-    if settings.is_vercel:
+    if settings.is_vercel or os.getenv("PES_DATA_POLLER") == "1":
         engine_kwargs["poolclass"] = NullPool
 
 _default_url = "sqlite+aiosqlite:///:memory:"

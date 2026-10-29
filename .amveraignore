@@ -1,0 +1,8 @@
+.env
+.env.*
+amvera.env
+pes_data.db
+logs/
+venv/
+__pycache__/
+*.pyc

@@ -33,9 +33,14 @@ def _load_env_file(path: Path, *, override: bool) -> None:
 def _bootstrap_env() -> None:
     """Amvera: UI-переменные + файл из «Подгрузить .env» (/data/.env)."""
     os.environ.setdefault("PES_DATA_POLLER", "1")
+    os.environ.setdefault("SKIP_INIT_DB", "1")
+    # В репозитории на Amvera иногда лежит dev-.env с sqlite — не использовать
+    if "sqlite" in (os.getenv("DATABASE_URL") or "").lower():
+        os.environ.pop("DATABASE_URL", None)
     _load_env_file(Path("/data/.env"), override=True)
     load_dotenv(ROOT / ".env.migrate", override=False)
-    load_dotenv(ROOT / ".env", override=False)
+    if "sqlite" not in (os.getenv("DATABASE_URL") or "").lower():
+        load_dotenv(ROOT / ".env", override=False)
 
     if not os.getenv("DATABASE_URL") and os.getenv("TARGET_DATABASE_URL"):
         os.environ["DATABASE_URL"] = os.getenv("TARGET_DATABASE_URL", "")
@@ -77,8 +82,12 @@ from utils.logger import setup_logging, get_logger
 async def main() -> None:
     setup_logging()
     logger = get_logger(__name__)
-    await init_db()
-    logger.info("Telegram poller: DB ready, starting polling…")
+    if os.getenv("SKIP_INIT_DB") == "1":
+        logger.info("Telegram poller: skip init_db (schema already on Postgres)")
+    else:
+        await init_db()
+        logger.info("Telegram poller: DB ready")
+    logger.info("Telegram poller: starting polling…")
     await run_telegram_polling()
 
 

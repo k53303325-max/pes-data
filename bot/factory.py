@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -28,7 +29,8 @@ def get_bot() -> Bot:
     global _bot
     if _bot is None:
         session = AiohttpSession(timeout=30)
-        session.middleware(OutgoingChatLogMiddleware())
+        if os.getenv("PES_DATA_POLLER") != "1":
+            session.middleware(OutgoingChatLogMiddleware())
         _bot = Bot(
             token=settings.bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -58,7 +60,12 @@ def get_dispatcher() -> Dispatcher:
             tariffs,
         )
 
-        storage = PostgresStorage() if settings.database_url.startswith("postgresql") else MemoryStorage()
+        if os.getenv("PES_DATA_POLLER") == "1":
+            storage = MemoryStorage()
+        elif settings.database_url.startswith("postgresql"):
+            storage = PostgresStorage()
+        else:
+            storage = MemoryStorage()
         _dp = Dispatcher(storage=storage)
 
         async def errors_handler(event: ErrorEvent) -> None:
@@ -93,9 +100,10 @@ def get_dispatcher() -> Dispatcher:
                 pass
 
         _dp.errors.register(errors_handler)
-        chat_log = ChatLogMiddleware()
-        _dp.message.middleware(chat_log)
-        _dp.callback_query.middleware(chat_log)
+        if os.getenv("PES_DATA_POLLER") != "1":
+            chat_log = ChatLogMiddleware()
+            _dp.message.middleware(chat_log)
+            _dp.callback_query.middleware(chat_log)
         _dp.include_router(start.router)
         _dp.include_router(menu.router)
         _dp.include_router(referral.router)
