@@ -1,0 +1,8 @@
+services:
+  telegram-poller:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.poller
+    env_file:
+      - .env.poller
+    restart: unless-stopped

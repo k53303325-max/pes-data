@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.pesdata.poller</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/mark/Desktop/Пёс Дата/venv/bin/python</string>
+		<string>/Users/mark/Desktop/Пёс Дата/scripts/telegram_poller.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/mark/Desktop/Пёс Дата</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>DATABASE_URL</key>
+		<string>ЗАМЕНИТЕ_НА_СТРОКУ_ИЗ_ONREZA</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/Users/mark/Desktop/Пёс Дата/logs/poller.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/mark/Desktop/Пёс Дата/logs/poller.launchd.err.log</string>
+</dict>
+</plist>

@@ -2,7 +2,9 @@
 
 Проект в панели: [app.onreza.ru/k53303325-v03q/deployments](https://app.onreza.ru/k53303325-v03q/deployments)
 
-ONREZA запускает **постоянный процесс** (uvicorn + FastAPI) — для Telegram-бота и админки это надёжнее, чем serverless на Vercel.
+ONREZA запускает **постоянный процесс** (uvicorn + FastAPI) — для **админки** это надёжнее, чем serverless на Vercel.
+
+**Бот 24/7:** Telegram API с серверов ONREZA часто недоступен → бот крутится **отдельно** (`scripts/telegram_poller.py` на VPS или Mac). Подробно: [docs/BOT_24_7.md](docs/BOT_24_7.md).
 
 ## 1. Репозиторий
 
@@ -22,7 +24,7 @@ server = "uvicorn"
 
 | Переменная | Назначение |
 |------------|------------|
-| `ONREZA` | `1` — хостинг ONREZA (бот по умолчанию через **long polling**, не webhook) |
+| `ONREZA` | `1` |
 | `TELEGRAM_BOT_DISABLED` | `1` — **рекомендуется**: бот не стартует внутри ONREZA (Telegram API с сервера часто недоступен). Бот — отдельно: `./venv/bin/python scripts/telegram_poller.py` на Mac/VPS с тем же `DATABASE_URL` и `BOT_TOKEN`. |
 | `TELEGRAM_POLLING` | `1` — polling внутри ONREZA (только если API Telegram доступен с сервера) |
 | `TELEGRAM_WEBHOOK` | не используйте на ONREZA, если polling/poller |
@@ -45,7 +47,7 @@ server = "uvicorn"
 
 | Сервис | URL |
 |--------|-----|
-| Telegram | `{APP_URL}/webhook/telegram` (ставится автоматически при старте) |
+| Telegram | не используется при `TELEGRAM_BOT_DISABLED=1` + poller на VPS |
 | ЮKassa | `{APP_URL}/yookassa/webhook` |
 
 ## 4. Деплой из CLI (опционально)
