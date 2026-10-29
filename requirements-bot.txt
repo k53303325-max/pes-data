@@ -1,0 +1,9 @@
+# Зависимости для scripts/telegram_poller.py (Amvera / VPS poller)
+aiogram>=3.15.0,<4
+aiohttp>=3.9.0
+SQLAlchemy[asyncio]>=2.0.36
+asyncpg>=0.30.0
+python-dotenv>=1.0.0
+greenlet>=3.0.0
+phonenumbers>=8.13.0
+yookassa>=3.4.0

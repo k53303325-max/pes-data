@@ -1,0 +1,15 @@
+# Только Telegram-poller для отдельного приложения на Amvera.
+# Админка остаётся на ONREZA (onreza.toml). Не смешивайте два типа приложения в одном проекте Amvera.
+
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: "3.12"
+
+build:
+  requirementsPath: requirements-bot.txt
+  useCache: true
+
+run:
+  scriptName: scripts/telegram_poller.py
