@@ -67,6 +67,7 @@ class Settings:
     is_onreza: bool
     use_webhook: bool
     telegram_polling: bool
+    telegram_bot_enabled: bool
     promo_test_code: str
     allow_mock_payment: bool
     referral_commission_percent: int
@@ -84,20 +85,22 @@ def get_settings() -> Settings:
     database_url = resolve_database_url()
     hosted_on_onreza_db = "kaiki.ru" in database_url
     onreza_host = is_onreza or hosted_on_onreza_db
-    telegram_polling = (
-        os.getenv("TELEGRAM_POLLING") == "1"
-        or (onreza_host and os.getenv("TELEGRAM_WEBHOOK") != "1")
-    )
-    use_webhook = (
-        (
-            is_vercel
-            or os.getenv("WEBHOOK_MODE") == "1"
-            or (onreza_host and os.getenv("TELEGRAM_WEBHOOK") == "1")
-        )
-        and not telegram_polling
+    bot_token = _clean_env(os.getenv("BOT_TOKEN"))
+    if is_vercel:
+        telegram_polling = False
+        use_webhook = False
+    else:
+        telegram_polling = os.getenv("TELEGRAM_POLLING") == "1"
+        use_webhook = (
+            onreza_host or os.getenv("WEBHOOK_MODE") == "1"
+        ) and not telegram_polling
+    telegram_bot_enabled = (
+        bool(bot_token)
+        and not is_vercel
+        and os.getenv("TELEGRAM_BOT_DISABLED") != "1"
     )
     return Settings(
-        bot_token=_clean_env(os.getenv("BOT_TOKEN")),
+        bot_token=bot_token,
         bot_username=_clean_env(os.getenv("BOT_USERNAME", "Pesdata_bot")).lstrip("@"),
         admin_telegram_id=admin_telegram_id,
         admin_username=admin_username,
@@ -122,6 +125,7 @@ def get_settings() -> Settings:
         is_onreza=is_onreza,
         use_webhook=use_webhook,
         telegram_polling=telegram_polling,
+        telegram_bot_enabled=telegram_bot_enabled,
         promo_test_code=os.getenv(
             "PROMO_TEST_CODE",
             "PESDATA100",

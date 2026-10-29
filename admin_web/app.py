@@ -118,7 +118,7 @@ async def _app_lifespan(_application: FastAPI):
         await _ensure_db()
     except Exception:
         logger.exception("Startup init_db failed")
-    if settings.bot_token:
+    if settings.telegram_bot_enabled:
         if settings.telegram_polling:
             from bot.polling_runner import run_telegram_polling
 
@@ -242,7 +242,11 @@ async def health(deep: bool = False):
         "ok": True,
         "platform": platform,
         "app_url": settings.app_url,
-        "telegram_mode": "polling" if settings.telegram_polling else "webhook",
+        "telegram_mode": (
+            "off"
+            if not settings.telegram_bot_enabled
+            else ("polling" if settings.telegram_polling else "webhook")
+        ),
         "db_ready": _db_initialized,
     }
     if deep and settings.bot_token and not settings.telegram_polling:

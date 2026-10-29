@@ -116,7 +116,7 @@ def get_dispatcher() -> Dispatcher:
 
 async def ensure_telegram_webhook() -> None:
     global _webhook_ready
-    if _webhook_ready or not settings.use_webhook or not settings.bot_token:
+    if _webhook_ready or not settings.use_webhook or not settings.telegram_bot_enabled:
         return
 
     app_url = (settings.app_url or "").rstrip("/")

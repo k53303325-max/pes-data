@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import traceback
 
 
 def _request_path(event) -> str:
@@ -11,25 +10,16 @@ def _request_path(event) -> str:
 
 
 def handler(event, context):
+    """Vercel отключён — бот и админка только на ONREZA."""
     path = _request_path(event)
     if path.rstrip("/") == "/health":
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"ok": True, "probe": "api-index"}),
+            "body": json.dumps({"ok": False, "deprecated": "use ONREZA"}),
         }
-
-    try:
-        from mangum import Mangum
-
-        from admin_web.app import app
-
-        if not hasattr(handler, "_mangum"):
-            handler._mangum = Mangum(app, lifespan="off")  # type: ignore[attr-defined]
-        return handler._mangum(event, context)  # type: ignore[attr-defined]
-    except Exception:
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "text/plain; charset=utf-8"},
-            "body": "Boot failed:\n" + traceback.format_exc(),
-        }
+    return {
+        "statusCode": 410,
+        "headers": {"Content-Type": "text/plain; charset=utf-8"},
+        "body": "Пёс Дата переехал на ONREZA: https://pes-data-k53303325-v03q.onreza.app",
+    }

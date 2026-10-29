@@ -23,7 +23,11 @@ server = "uvicorn"
 | Переменная | Назначение |
 |------------|------------|
 | `ONREZA` | `1` — хостинг ONREZA (бот по умолчанию через **long polling**, не webhook) |
-| `TELEGRAM_WEBHOOK` | `1` — только если нужен webhook вместо polling (обычно не нужен) |
+| `TELEGRAM_BOT_DISABLED` | `1` — **рекомендуется**: бот не стартует внутри ONREZA (Telegram API с сервера часто недоступен). Бот — отдельно: `./venv/bin/python scripts/telegram_poller.py` на Mac/VPS с тем же `DATABASE_URL` и `BOT_TOKEN`. |
+| `TELEGRAM_POLLING` | `1` — polling внутри ONREZA (только если API Telegram доступен с сервера) |
+| `TELEGRAM_WEBHOOK` | не используйте на ONREZA, если polling/poller |
+
+**Vercel:** авто-деплой отключён в `vercel.json`; бот на Vercel не запускается.
 | `APP_URL` | Публичный URL приложения **без** слэша в конце, например `https://ваш-проект.onreza.app` |
 | `BOT_TOKEN` | Токен @Pesdata_bot |
 | `DATABASE_URL` | PostgreSQL (`postgresql://…`) |
