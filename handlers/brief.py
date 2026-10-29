@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from aiogram import F, Router
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -422,7 +421,7 @@ async def brief_confirm(callback: CallbackQuery, state: FSMContext) -> None:
         )
 
 
-@router.message(F.text, NoStateFilter(), ~Command())
+@router.message(F.text, NoStateFilter(), ~F.text.startswith("/"))
 async def brief_recover_from_draft(message: Message, state: FSMContext) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, message.from_user.id)
