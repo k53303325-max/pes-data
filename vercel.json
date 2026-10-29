@@ -4,16 +4,8 @@
     "PROMO_TEST_CODE": "PESDATA100"
   },
   "functions": {
-    "api/index.py": {
+    "admin_web/app.py": {
       "maxDuration": 30
     }
-  },
-  "builds": [
-    { "src": "api/index.py", "use": "@vercel/python" },
-    { "src": "public/**", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/static/(.*)", "dest": "/public/static/$1" },
-    { "src": "/(.*)", "dest": "/api/index.py" }
-  ]
+  }
 }
