@@ -85,9 +85,6 @@ class OutgoingChatLogMiddleware(BaseRequestMiddleware):
         chat_id = getattr(method, "chat_id", None)
         text = getattr(method, "text", None) or getattr(method, "caption", None)
         if method_name == "AnswerCallbackQuery":
-            alert = getattr(method, "text", None)
-            if alert:
-                return response
             return response
 
         if not chat_id or not text:

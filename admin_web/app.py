@@ -491,7 +491,7 @@ async def user_chat_page(request: Request, user_id: int, msg: str = ""):
         if not user:
             return RedirectResponse("/chats", status_code=303)
         total = await count_user_chat_messages(session, user_id)
-        messages = await get_user_chat_messages(session, user_id, limit=500)
+        messages = await get_user_chat_messages(session, user_id, limit=2000)
     return render(
         request,
         "user_chat.html",
@@ -531,8 +531,12 @@ async def user_chat_send(request: Request, user_id: int, text: str = Form(...)):
     if not result.get("ok"):
         err = quote(result.get("error", "Не удалось отправить")[:200])
         return RedirectResponse(f"/users/{user_id}/chat?msg={err}", status_code=303)
+    if result.get("queued"):
+        note = "Сообщение в очереди — бот доставит в Telegram в течение нескольких секунд"
+    else:
+        note = "Сообщение отправлено в Telegram"
     return RedirectResponse(
-        f"/users/{user_id}/chat?msg={quote('Сообщение отправлено в Telegram')}",
+        f"/users/{user_id}/chat?msg={quote(note)}",
         status_code=303,
     )
 
@@ -544,7 +548,16 @@ async def _send_user_telegram_message(
     *,
     source: str,
 ) -> dict:
+    """ONREZA не ходит в api.telegram.org — очередь в БД, poller на Amvera отправляет."""
+    if settings.is_onreza or settings.is_vercel:
+        from services.telegram_outbox_service import enqueue_telegram_message
+
+        await enqueue_telegram_message(session, user, text, source=source)
+        return {"ok": True, "queued": True, "telegram_id": user.telegram_id}
+
     import aiohttp
+
+    from services.chat_log_service import log_outgoing
 
     url = f"https://api.telegram.org/bot{settings.bot_token}/sendMessage"
     payload = {"chat_id": user.telegram_id, "text": text, "parse_mode": "HTML"}
@@ -557,8 +570,6 @@ async def _send_user_telegram_message(
     except Exception as exc:
         logger.exception("Telegram send failed user_id=%s", user.id)
         return {"ok": False, "error": str(exc)}
-
-    from services.chat_log_service import log_outgoing
 
     await log_outgoing(
         session,

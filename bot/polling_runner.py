@@ -52,5 +52,27 @@ async def run_telegram_polling() -> None:
     except Exception:
         logger.exception("delete_webhook failed (polling continues)")
 
-    logger.info("Telegram long polling started")
-    await dp.start_polling(bot, handle_signals=False)
+    async def _outbox_worker() -> None:
+        from services.telegram_outbox_service import process_outbox_batch
+
+        while True:
+            try:
+                n = await process_outbox_batch(bot)
+                await asyncio.sleep(0.8 if n else 2.5)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Telegram outbox worker error")
+                await asyncio.sleep(5.0)
+
+    outbox_task = asyncio.create_task(_outbox_worker(), name="telegram_outbox")
+    logger.info("Telegram outbox worker started")
+    try:
+        logger.info("Telegram long polling started")
+        await dp.start_polling(bot, handle_signals=False)
+    finally:
+        outbox_task.cancel()
+        try:
+            await outbox_task
+        except asyncio.CancelledError:
+            pass

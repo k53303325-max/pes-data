@@ -71,6 +71,12 @@ class ChatDirection(str, Enum):
     OUT = "out"
 
 
+class TelegramOutboxStatus(str, Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+
+
 class BriefRequestStatus(str, Enum):
     DRAFT = "draft"
     SUBMITTED = "submitted"
@@ -383,6 +389,24 @@ class BotMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     user: Mapped[Optional["User"]] = relationship(back_populates="chat_messages")
+
+
+class TelegramOutbox(Base):
+    """Сообщения из админки ONREZA → отправляет poller на Amvera (нет доступа к Bot API с ONREZA)."""
+
+    __tablename__ = "telegram_outbox"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(100), default="admin.chat")
+    status: Mapped[str] = mapped_column(
+        String(20), default=TelegramOutboxStatus.PENDING.value, index=True
+    )
+    error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class CompetitorNumber(Base):

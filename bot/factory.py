@@ -29,8 +29,7 @@ def get_bot() -> Bot:
     global _bot
     if _bot is None:
         session = AiohttpSession(timeout=30)
-        if os.getenv("PES_DATA_POLLER") != "1":
-            session.middleware(OutgoingChatLogMiddleware())
+        session.middleware(OutgoingChatLogMiddleware())
         _bot = Bot(
             token=settings.bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -100,10 +99,9 @@ def get_dispatcher() -> Dispatcher:
                 pass
 
         _dp.errors.register(errors_handler)
-        if os.getenv("PES_DATA_POLLER") != "1":
-            chat_log = ChatLogMiddleware()
-            _dp.message.middleware(chat_log)
-            _dp.callback_query.middleware(chat_log)
+        chat_log = ChatLogMiddleware()
+        _dp.message.middleware(chat_log)
+        _dp.callback_query.middleware(chat_log)
         _dp.include_router(start.router)
         _dp.include_router(menu.router)
         _dp.include_router(referral.router)
