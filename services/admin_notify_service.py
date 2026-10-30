@@ -87,6 +87,17 @@ async def resolve_admin_telegram_id(session: AsyncSession) -> int | None:
     return result.scalar_one_or_none()
 
 
+async def ensure_admin_notify_config() -> None:
+    """Синхронизировать ADMIN_ID из env с таблицей уведомлений (poller / ONREZA)."""
+    if not settings.admin_telegram_id:
+        return
+    async with async_session() as session:
+        cfg = await get_or_create_default_config(session)
+        if cfg and cfg.telegram_id != settings.admin_telegram_id:
+            cfg.telegram_id = settings.admin_telegram_id
+            await session.commit()
+
+
 async def get_or_create_default_config(session: AsyncSession) -> AdminNotification | None:
     configs = await get_notification_configs(session)
     if configs:
@@ -144,7 +155,11 @@ async def _send_to_admins(text: str, notify_type: NotifyType) -> None:
             if c.telegram_id and _is_enabled(c, notify_type)
         ]
 
+    if not targets and settings.admin_telegram_id:
+        targets = [settings.admin_telegram_id]
+
     if not targets:
+        logger.warning("Admin notify skipped (%s): no telegram_id in config or ADMIN_ID", notify_type.value)
         return
 
     for chat_id in targets:

@@ -19,10 +19,12 @@ logger = get_logger(__name__)
 router = Router()
 
 INVOICE_PROMPT = (
-    "🏦 <b>Счёт на оплату</b>\n\n"
-    "Пришлите <b>название компании или ИП</b>, <b>ИНН</b> и <b>email</b> для счёта.\n"
-    "Если есть карточка с реквизитами — отправьте её файлом в следующем сообщении "
-    "(можно вместе с текстом).\n\n"
+    "🏦 <b>Счёт для юрлица или ИП</b>\n\n"
+    "Пришлите одним сообщением:\n"
+    "• <b>название организации или ИП</b>\n"
+    "• <b>ИНН</b> (10 или 12 цифр)\n\n"
+    "Email не обязателен. Можно приложить файл с реквизитами.\n\n"
+    "Для оплаты картой как физлицо вернитесь назад и выберите «Оплатить картой (ЮKassa)».\n\n"
     "Пакет: <b>{package_name}</b> · {amount} ₽"
 )
 
@@ -90,7 +92,7 @@ async def bank_invoice_receive(message: Message, state: FSMContext) -> None:
         file_name = message.document.file_name
 
     if not text.strip() and not file_id:
-        await message.answer("Пришлите текст с названием, ИНН и email или файл с реквизитами.")
+        await message.answer("Пришлите текст с названием и ИНН или файл с реквизитами.")
         return
 
     try:

@@ -3,6 +3,7 @@
 {% block title %}Оплата с р/с — Пёс Дата{% endblock %}
 {% block content %}
 <h2>Заявки на оплату с расчётного счёта</h2>
+<p style="color:#888;margin-bottom:12px">Отправка счёта уходит в Telegram через бота (очередь → Amvera). Нужен файл счёта.</p>
 {% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
 <div class="card">
   <table class="table">
@@ -15,7 +16,8 @@
         <th>Сумма</th>
         <th>Статус</th>
         <th>Дата</th>
-        <th>Действие</th>
+        <th>Статус / заметка</th>
+        <th>Отправить счёт в бот</th>
       </tr>
     </thead>
     <tbody>
@@ -25,12 +27,13 @@
         <td>
           {{ r.user.first_name or '—' }}
           {% if r.user.username %}<br>@{{ r.user.username }}{% endif %}
+          <br><a href="/users/{{ r.user_id }}/chat">💬 чат</a>
         </td>
         <td>{{ r.package_name }} ({{ r.contact_limit }})</td>
         <td>{{ r.company_name or '—' }}<br>{% if r.company_inn %}ИНН {{ r.company_inn }}{% endif %}</td>
         <td>{{ "{:,}".format(r.amount).replace(",", " ") }} ₽</td>
         <td>{{ bank_labels.get(r.status, r.status) }}</td>
-        <td>{{ r.created_at }}</td>
+        <td>{{ r.created_at.strftime('%d.%m.%Y %H:%M') if r.created_at else '—' }}</td>
         <td>
           <form method="post" action="/bank-payments/{{ r.id }}/status" class="inline-form">
             <select name="status">
@@ -38,13 +41,20 @@
               <option value="{{ key }}" {% if r.status == key %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
-            <input type="text" name="admin_note" placeholder="Заметка" value="{{ r.admin_note or '' }}" style="max-width:140px">
-            <button class="btn btn-small" type="submit">OK</button>
+            <input type="text" name="admin_note" placeholder="Заметка" value="{{ r.admin_note or '' }}" style="max-width:120px">
+            <button class="btn btn-secondary" type="submit" style="padding:4px 8px;font-size:12px">OK</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/bank-payments/{{ r.id }}/send-invoice" enctype="multipart/form-data" style="min-width:220px">
+            <textarea name="message" rows="3" placeholder="Текст (необяз.)" style="font-size:12px;margin-bottom:6px"></textarea>
+            <input type="file" name="file" accept=".pdf,.doc,.docx,.xlsx,.png,.jpg" required style="font-size:12px;margin-bottom:6px">
+            <button class="btn" type="submit" style="padding:6px 10px;font-size:12px">📤 В Telegram</button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7">Заявок пока нет</td></tr>
+      <tr><td colspan="9">Заявок пока нет</td></tr>
       {% endfor %}
     </tbody>
   </table>

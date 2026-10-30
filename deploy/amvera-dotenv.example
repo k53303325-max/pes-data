@@ -1,3 +1,13 @@
-# Сохраните как amvera.env на Mac, подставьте значения, в Amvera: Переменные → «Подгрузить .env»
+# Amvera → Переменные → Подгрузить .env (этап «Запуск»)
 BOT_TOKEN=
 DATABASE_URL=
+# Тот же Postgres (Kaiki), что на ONREZA. В пароле ! → %21
+
+# Уведомления вам в Telegram (регистрации, заявки, оплаты)
+ADMIN_ID=
+
+# ЮKassa — создание платежа в боте (физлицо)
+YOOKASSA_SHOP_ID=
+YOOKASSA_SECRET_KEY=
+# URL возврата после оплаты (можно не задавать — бот t.me)
+# YOOKASSA_RETURN_URL=https://t.me/Pesdata_bot?start=payment_ok

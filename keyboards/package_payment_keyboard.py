@@ -12,8 +12,8 @@ CB_PKG_PAY_MENU_PREFIX = "pkg_pay_menu:"
 
 def package_card_actions_keyboard(code: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить картой (ЮKassa)", callback_data=f"{CB_PAY_PKG_PREFIX}{code}")],
-        [InlineKeyboardButton(text="Получить счёт на оплату", callback_data=f"{CB_BANK_PKG_PREFIX}{code}")],
+        [InlineKeyboardButton(text="💳 Физлицо — оплата картой (ЮKassa)", callback_data=f"{CB_PAY_PKG_PREFIX}{code}")],
+        [InlineKeyboardButton(text="🏦 Юрлицо / ИП — счёт на оплату", callback_data=f"{CB_BANK_PKG_PREFIX}{code}")],
         [InlineKeyboardButton(text="Обсудить этот пакет", callback_data=f"{CB_PKG_DISCUSS}{code}")],
         [InlineKeyboardButton(text="К списку пакетов", callback_data=CB_PKG_LIST)],
         [InlineKeyboardButton(text="🏠 В главное меню", callback_data="main_menu")],

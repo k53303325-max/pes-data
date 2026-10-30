@@ -298,6 +298,21 @@ def _migrate_projects(sync_conn) -> None:
         )
 
 
+def _migrate_telegram_outbox_files(sync_conn) -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if not insp.has_table("telegram_outbox"):
+        return
+    cols = {c["name"] for c in insp.get_columns("telegram_outbox")}
+    dialect = sync_conn.dialect.name
+    if "file_name" not in cols:
+        sync_conn.execute(text("ALTER TABLE telegram_outbox ADD COLUMN file_name VARCHAR(255)"))
+    if "file_data" not in cols:
+        blob = "BYTEA" if dialect == "postgresql" else "BLOB"
+        sync_conn.execute(text(f"ALTER TABLE telegram_outbox ADD COLUMN file_data {blob}"))
+
+
 def _migrate_referral_commissions(sync_conn) -> None:
     from sqlalchemy import inspect, text
 
@@ -455,6 +470,7 @@ async def init_db() -> None:
         await conn.run_sync(_migrate_users_referral)
         await conn.run_sync(_migrate_bank_invoice_columns)
         await conn.run_sync(_migrate_referral_commissions)
+        await conn.run_sync(_migrate_telegram_outbox_files)
         await conn.run_sync(_migrate_tariff_columns)
         await conn.run_sync(_migrate_payments_contact_limit)
         await conn.run_sync(_migrate_competitor_numbers)

@@ -34,7 +34,7 @@ async def create_bank_invoice_request(
     *,
     company_name: str,
     company_inn: str | None,
-    invoice_email: str,
+    invoice_email: str | None = None,
     requisites_file_id: str | None = None,
     requisites_file_name: str | None = None,
 ) -> BankPaymentRequest:
@@ -68,7 +68,7 @@ async def create_bank_invoice_request(
         status=BankPaymentStatus.AWAITING_PAYMENT.value,
         company_name=company_name.strip()[:512],
         company_inn=company_inn,
-        invoice_email=invoice_email.strip()[:255],
+        invoice_email=(invoice_email or "").strip()[:255] or None,
         requisites_file_id=requisites_file_id,
         requisites_file_name=requisites_file_name,
     )
@@ -78,15 +78,15 @@ async def create_bank_invoice_request(
     return row
 
 
-def parse_invoice_message(text: str) -> tuple[str, str | None, str]:
+def parse_invoice_message(text: str) -> tuple[str, str, str | None]:
     raw = (text or "").strip()
     if len(raw) < 5:
         raise ValueError("Слишком короткое сообщение")
 
+    email: str | None = None
     email_match = EMAIL_RE.search(raw)
-    if not email_match:
-        raise ValueError("Укажите email для счёта")
-    email = email_match.group(0)
+    if email_match:
+        email = email_match.group(0)
 
     inn: str | None = None
     for token in re.findall(r"\d{10,12}", raw):
@@ -94,13 +94,16 @@ def parse_invoice_message(text: str) -> tuple[str, str | None, str]:
         if ok and normalized:
             inn = normalized
             break
+    if not inn:
+        raise ValueError("Укажите корректный ИНН (10 или 12 цифр)")
 
-    company = raw.replace(email, "").strip()
-    for token in re.findall(r"\d{10,12}", company):
-        company = company.replace(token, "").strip()
+    company = raw
+    if email:
+        company = company.replace(email, "")
+    company = re.sub(r"\d{10,12}", "", company).strip()
     company = " ".join(company.split())
     if len(company) < 2:
-        company = "—"
+        company = "ИП / организация"
 
     return company, inn, email
 

@@ -30,6 +30,12 @@ async def cb_pay_package(callback: CallbackQuery) -> None:
         await callback.answer(str(exc), show_alert=True)
         return
 
+    from payments.yookassa import PAYMENT_UNAVAILABLE_MSG, is_yookassa_configured
+
+    if not is_yookassa_configured:
+        await callback.answer(PAYMENT_UNAVAILABLE_MSG, show_alert=True)
+        return
+
     await callback.answer()
 
     async with async_session() as session:

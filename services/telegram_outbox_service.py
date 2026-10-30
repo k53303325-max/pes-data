@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from aiogram import Bot
 from aiogram.enums import ParseMode
+from aiogram.types import BufferedInputFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,8 @@ async def enqueue_telegram_message(
     text: str,
     *,
     source: str = "admin.chat",
+    file_name: str | None = None,
+    file_data: bytes | None = None,
 ) -> TelegramOutbox:
     row = TelegramOutbox(
         user_id=user.id,
@@ -27,11 +30,13 @@ async def enqueue_telegram_message(
         text=text[:4000],
         source=source,
         status=TelegramOutboxStatus.PENDING.value,
+        file_name=file_name,
+        file_data=file_data,
     )
     session.add(row)
     await session.commit()
     await session.refresh(row)
-    logger.info("Telegram outbox queued id=%s user_id=%s", row.id, user.id)
+    logger.info("Telegram outbox queued id=%s user_id=%s file=%s", row.id, user.id, bool(file_data))
     return row
 
 
@@ -50,11 +55,25 @@ async def process_outbox_batch(bot: Bot, *, limit: int = 15) -> int:
             if not row:
                 break
             try:
-                await bot.send_message(
-                    chat_id=row.telegram_id,
-                    text=row.text,
-                    parse_mode=ParseMode.HTML,
-                )
+                if row.file_data:
+                    doc = BufferedInputFile(row.file_data, filename=row.file_name or "invoice.pdf")
+                    await bot.send_document(
+                        chat_id=row.telegram_id,
+                        document=doc,
+                        caption=row.text or None,
+                        parse_mode=ParseMode.HTML,
+                    )
+                    log_type = "document"
+                    log_content = (row.text or "") + f"\n[файл: {row.file_name or 'document'}]"
+                else:
+                    await bot.send_message(
+                        chat_id=row.telegram_id,
+                        text=row.text,
+                        parse_mode=ParseMode.HTML,
+                    )
+                    log_type = "text"
+                    log_content = row.text
+
                 row.status = TelegramOutboxStatus.SENT.value
                 row.sent_at = datetime.now(timezone.utc)
                 row.error = None
@@ -63,8 +82,8 @@ async def process_outbox_batch(bot: Bot, *, limit: int = 15) -> int:
                     await log_outgoing(
                         log_session,
                         telegram_id=row.telegram_id,
-                        content=row.text,
-                        message_type="text",
+                        content=log_content,
+                        message_type=log_type,
                         source=row.source,
                     )
                 sent += 1

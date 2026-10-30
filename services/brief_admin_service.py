@@ -80,6 +80,17 @@ async def update_trial_status(session: AsyncSession, trial_id: int, status: str)
     return row
 
 
+async def get_bank_payment(
+    session: AsyncSession, request_id: int
+) -> BankPaymentRequest | None:
+    result = await session.execute(
+        select(BankPaymentRequest)
+        .options(selectinload(BankPaymentRequest.user))
+        .where(BankPaymentRequest.id == request_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_bank_payments(session: AsyncSession, *, limit: int = 200) -> list[BankPaymentRequest]:
     result = await session.execute(
         select(BankPaymentRequest)

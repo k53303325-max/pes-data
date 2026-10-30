@@ -97,6 +97,9 @@ async def main() -> None:
     else:
         await init_db()
         logger.info("Telegram poller: DB ready")
+    from services.admin_notify_service import ensure_admin_notify_config
+
+    await ensure_admin_notify_config()
     logger.info("Telegram poller: starting polling…")
     await run_telegram_polling()
 

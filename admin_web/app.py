@@ -22,6 +22,7 @@ from config.settings import settings
 from database.database import async_session, init_db
 from database.models import (
     BankPaymentRequest,
+    BankPaymentStatus,
     Delivery,
     DeliveryType,
     NicheBriefRequest,
@@ -74,6 +75,7 @@ from services.brief_admin_service import (
     list_bank_payments,
     list_briefs,
     list_trials,
+    get_bank_payment,
     update_bank_payment_status,
     update_trial_status,
 )
@@ -117,10 +119,12 @@ _polling_task: asyncio.Task | None = None
 
 @asynccontextmanager
 async def _app_lifespan(_application: FastAPI):
+    from services.admin_notify_service import ensure_admin_notify_config
     global _polling_task
 
     try:
         await _ensure_db()
+        await ensure_admin_notify_config()
     except Exception:
         logger.exception("Startup init_db failed")
     if settings.telegram_bot_enabled:
@@ -899,6 +903,73 @@ async def bank_payment_status_update(
         return RedirectResponse("/bank-payments?msg=Статус сохранён", status_code=303)
     except ValueError as exc:
         return RedirectResponse(f"/bank-payments?msg={quote(str(exc))}", status_code=303)
+
+
+def _default_bank_invoice_message(row: BankPaymentRequest) -> str:
+    amount = f"{row.amount:,} ₽".replace(",", " ")
+    lines = [
+        "🏦 <b>Счёт на оплату — Пёс Дата</b>",
+        "",
+        f"Заявка: #{row.id}",
+        f"Пакет: {row.package_name} ({row.contact_limit} контактов)",
+        f"Сумма: {amount}",
+        f"Плательщик: {row.company_name or '—'}",
+        f"ИНН: {row.company_inn or '—'}",
+        "",
+        "Счёт во вложении. После оплаты пришлите, пожалуйста, платёжное поручение в этот чат.",
+    ]
+    return "\n".join(lines)
+
+
+@app.post("/bank-payments/{request_id}/send-invoice")
+async def bank_payment_send_invoice(
+    request: Request,
+    request_id: int,
+    message: str = Form(""),
+    file: UploadFile | None = File(None),
+):
+    if redirect := auth_guard(request):
+        return redirect
+    async with async_session() as session:
+        row = await get_bank_payment(session, request_id)
+        if not row or not row.user:
+            return RedirectResponse(
+                f"/bank-payments?msg={quote('Заявка не найдена')}",
+                status_code=303,
+            )
+        body = (message or "").strip() or _default_bank_invoice_message(row)
+        file_data: bytes | None = None
+        file_name: str | None = None
+        if file and file.filename:
+            file_data = await file.read()
+            if len(file_data) > 20 * 1024 * 1024:
+                return RedirectResponse(
+                    f"/bank-payments?msg={quote('Файл больше 20 МБ')}",
+                    status_code=303,
+                )
+            file_name = file.filename
+        if not file_data:
+            return RedirectResponse(
+                f"/bank-payments?msg={quote('Прикрепите файл счёта (PDF или др.)')}",
+                status_code=303,
+            )
+        from services.telegram_outbox_service import enqueue_telegram_message
+
+        await enqueue_telegram_message(
+            session,
+            row.user,
+            body,
+            source="admin.bank_invoice",
+            file_name=file_name,
+            file_data=file_data,
+        )
+        if row.status not in (BankPaymentStatus.PAID.value, BankPaymentStatus.CANCELED.value):
+            row.status = BankPaymentStatus.INVOICED.value
+        await session.commit()
+    return RedirectResponse(
+        f"/bank-payments?msg={quote('Счёт поставлен в очередь — клиент получит в Telegram от бота')}",
+        status_code=303,
+    )
 
 
 @app.get("/tariffs-legacy", response_class=HTMLResponse)
