@@ -10,7 +10,8 @@ from config.db_url import get_app_url, resolve_database_url, resolve_yookassa_re
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / ".env")
+if os.getenv("PES_DATA_POLLER") != "1" and os.getenv("AMVERA") != "1":
+    load_dotenv(BASE_DIR / ".env")
 
 
 def _clean_env(value: str | None) -> str:
@@ -134,7 +135,7 @@ def get_settings() -> Settings:
             os.getenv("ALLOW_MOCK_PAYMENT") == "1" and not is_vercel and not is_onreza
         ),
         referral_commission_percent=_int_env("REFERRAL_COMMISSION_PERCENT", 10),
-        referral_payout_hold_days=_int_env("REFERRAL_PAYOUT_HOLD_DAYS", 14),
+        referral_payout_hold_days=_int_env("REFERRAL_PAYOUT_HOLD_DAYS", 7),
     )
 
 

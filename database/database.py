@@ -304,6 +304,41 @@ def _migrate_referral_commissions(sync_conn) -> None:
     insp = inspect(sync_conn)
     if not insp.has_table("referral_commissions"):
         return
+    _sync_referral_pending_eligible_at(sync_conn)
+
+
+def _sync_referral_pending_eligible_at(sync_conn) -> None:
+    """pending-начисления: eligible_at = paid_at + REFERRAL_PAYOUT_HOLD_DAYS (актуальная политика)."""
+    import os
+
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if not insp.has_table("referral_commissions"):
+        return
+    try:
+        days = int(os.getenv("REFERRAL_PAYOUT_HOLD_DAYS", "7"))
+    except ValueError:
+        days = 7
+    days = max(0, min(days, 365))
+    dialect = sync_conn.dialect.name
+    if dialect == "postgresql":
+        sync_conn.execute(
+            text(
+                "UPDATE referral_commissions SET eligible_at = paid_at + (:days * interval '1 day') "
+                "WHERE status = 'pending' AND paid_at IS NOT NULL"
+            ),
+            {"days": days},
+        )
+    else:
+        sync_conn.execute(
+            text(
+                "UPDATE referral_commissions "
+                "SET eligible_at = datetime(paid_at, :offset) "
+                "WHERE status = 'pending' AND paid_at IS NOT NULL"
+            ),
+            {"offset": f"+{days} days"},
+        )
 
 
 def _migrate_bank_invoice_columns(sync_conn) -> None:
@@ -358,6 +393,48 @@ def _migrate_users_referral(sync_conn) -> None:
                 "WHERE referral_code IS NULL OR referral_code = ''"
             )
         )
+    _normalize_referral_codes(sync_conn)
+
+
+def _normalize_referral_codes(sync_conn) -> None:
+    """ref||id у каждого user; двухфазно, чтобы не ловить UNIQUE при сдвинутых кодах после миграции."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if not insp.has_table("users"):
+        return
+    dialect = sync_conn.dialect.name
+    if dialect == "postgresql":
+        sync_conn.execute(
+            text(
+                "UPDATE users SET referral_code = 'pending' || id::text "
+                "WHERE referral_code IS DISTINCT FROM ('ref' || id::text)"
+            )
+        )
+        sync_conn.execute(
+            text(
+                "UPDATE users SET referral_code = 'ref' || id::text "
+                "WHERE referral_code LIKE 'pending%'"
+            )
+        )
+    else:
+        sync_conn.execute(
+            text(
+                "UPDATE users SET referral_code = 'pending' || id "
+                "WHERE referral_code IS NULL OR referral_code != ('ref' || id)"
+            )
+        )
+        sync_conn.execute(
+            text(
+                "UPDATE users SET referral_code = 'ref' || id "
+                "WHERE referral_code LIKE 'pending%'"
+            )
+        )
+
+
+def normalize_referral_codes_sync(sync_conn) -> None:
+    """Публичная обёртка для handlers (исправление UNIQUE на referral_code)."""
+    _normalize_referral_codes(sync_conn)
 
 
 def _migrate_users_start_source(sync_conn) -> None:

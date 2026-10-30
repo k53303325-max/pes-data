@@ -24,7 +24,9 @@
     <div><span class="stat-label">Статус</span><br><span class="badge">{{ labels.get(user.status, user.status) }}</span></div>
     <div><span class="stat-label">Регистрация</span><br>{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</div>
     <div><span class="stat-label">Проектов</span><br><strong>{{ projects|length }}</strong></div>
-    <div><span class="stat-label">Оплат</span><br><strong>{{ payments|length }}</strong></div>
+    {% set ps = summarize_user_payments(payments) %}
+    <div><span class="stat-label">Оплачено</span><br><strong class="stat-paid">{{ ps.paid }}</strong></div>
+    <div><span class="stat-label">На оплате (не завершено)</span><br><strong class="stat-pending">{{ ps.pending }}</strong></div>
   </div>
 </div>
 

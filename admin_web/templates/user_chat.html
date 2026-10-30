@@ -8,9 +8,11 @@
   <a href="/users/{{ user.id }}">Карточка клиента</a>
 </p>
 
+{% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
+
 <div class="card hub-header">
   <h2 style="margin-bottom:8px">💬 {{ user.first_name or 'Клиент' }} @{{ user.username or user.telegram_id }}</h2>
-  <p style="color:#999">Telegram ID: {{ user.telegram_id }} · Сообщений: {{ total }}</p>
+  <p style="color:#999">Telegram ID: {{ user.telegram_id }} · Сообщений в истории: {{ total }}</p>
 </div>
 
 <div class="card chat-thread">
@@ -20,7 +22,7 @@
       {% if m.direction == 'in' %}
       <span class="badge badge-in">Клиент</span>
       {% else %}
-      <span class="badge badge-out">Бот</span>
+      <span class="badge badge-out">Бот / админ</span>
       {% endif %}
       <span class="chat-msg-type">{{ m.message_type }}</span>
       <span class="chat-msg-time">{{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '' }}</span>
@@ -28,7 +30,16 @@
     <div class="chat-msg-body">{{ strip_html(m.content) }}</div>
   </div>
   {% else %}
-  <p style="color:#888;text-align:center;padding:32px 0">Сообщений пока нет. История начнёт сохраняться с новых сообщений.</p>
+  <p style="color:#888;text-align:center;padding:32px 0">Сообщений пока нет. Напишите клиенту ниже — сообщение уйдёт в Telegram от бота.</p>
   {% endfor %}
+</div>
+
+<div class="card chat-compose">
+  <h3 style="font-size:16px;margin-bottom:12px">Написать клиенту в Telegram</h3>
+  <form method="post" action="/users/{{ user.id }}/chat/send">
+    <textarea name="text" rows="4" placeholder="Текст сообщения (HTML: &lt;b&gt;жирный&lt;/b&gt;)" required maxlength="4000"></textarea>
+    <p style="color:#888;font-size:12px;margin:-4px 0 12px">Отправится от @Pesdata_bot, попадёт в историю переписки</p>
+    <button class="btn" type="submit">Отправить</button>
+  </form>
 </div>
 {% endblock %}

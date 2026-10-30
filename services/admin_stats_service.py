@@ -18,6 +18,19 @@ from database.models import (
 )
 
 
+def summarize_user_payments(payments: list[Payment] | None) -> dict[str, int]:
+    """Оплачено vs незавершённые попытки (pending/canceled)."""
+    paid = pending = other = 0
+    for p in payments or []:
+        if p.status == PaymentStatus.PAID.value:
+            paid += 1
+        elif p.status == PaymentStatus.PENDING.value:
+            pending += 1
+        else:
+            other += 1
+    return {"paid": paid, "pending": pending, "other": other}
+
+
 async def dashboard_stats(session: AsyncSession) -> dict:
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -59,6 +72,7 @@ async def list_users(
     session: AsyncSession,
     q: str = "",
     status: str = "",
+    pay_filter: str = "",
 ) -> list[User]:
     stmt = select(User).order_by(User.created_at.desc())
     if q:
@@ -73,7 +87,17 @@ async def list_users(
         selectinload(User.projects),
         selectinload(User.payments),
     ))
-    return list(result.scalars().all())
+    users = list(result.scalars().all())
+    if pay_filter == "paid":
+        users = [u for u in users if summarize_user_payments(u.payments)["paid"] > 0]
+    elif pay_filter == "checkout":
+        users = [
+            u
+            for u in users
+            if summarize_user_payments(u.payments)["pending"] > 0
+            and summarize_user_payments(u.payments)["paid"] == 0
+        ]
+    return users
 
 
 async def sales_by_day(session: AsyncSession, days: int = 14) -> list[dict]:

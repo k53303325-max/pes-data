@@ -29,3 +29,4 @@ exports/
 .vercel
 .env.local
 .env*
+amvera.env

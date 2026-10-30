@@ -3,7 +3,7 @@
 {% block title %}Клиенты{% endblock %}
 {% block content %}
 <h2>Клиенты</h2>
-<p style="color:#888;margin-bottom:16px">Единая карточка: пользователь, проекты, оплаты и удаление</p>
+<p style="color:#888;margin-bottom:16px">Оплачено — успешные платежи; «На оплате» — начали оплату, но не завершили</p>
 {% if msg %}<div class="msg card">{{ msg }}</div>{% endif %}
 <form class="filters card" method="get">
   <input name="q" value="{{ q }}" placeholder="Username или Telegram ID">
@@ -13,14 +13,20 @@
     <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ l }}</option>
     {% endfor %}
   </select>
+  <select name="pay_filter">
+    <option value="">Все по оплатам</option>
+    <option value="paid" {% if pay_filter=='paid' %}selected{% endif %}>Только с оплатой</option>
+    <option value="checkout" {% if pay_filter=='checkout' %}selected{% endif %}>Только бросили на оплате</option>
+  </select>
   <button class="btn" type="submit">Найти</button>
 </form>
 <div class="card">
 <table>
   <tr>
-    <th>Клиент</th><th>Telegram ID</th><th>Проектов</th><th>Оплат</th><th>Статус</th><th>Регистрация</th><th></th>
+    <th>Клиент</th><th>Telegram ID</th><th>Проектов</th><th>Оплачено</th><th>На оплате</th><th>Статус</th><th>Регистрация</th><th></th>
   </tr>
   {% for u in users %}
+  {% set ps = summarize_user_payments(u.payments) %}
   <tr>
     <td>
       <strong>{{ u.first_name or '—' }}</strong><br>
@@ -28,14 +34,28 @@
     </td>
     <td>{{ u.telegram_id }}</td>
     <td>{{ u.projects|length if u.projects else 0 }}</td>
-    <td>{{ u.payments|length if u.payments else 0 }}</td>
+    <td>
+      {% if ps.paid %}
+      <span class="badge badge-paid" title="Успешных оплат">{{ ps.paid }}</span>
+      {% else %}
+      <span style="color:#666">0</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if ps.pending %}
+      <span class="badge badge-pending" title="Незавершённая оплата">{{ ps.pending }}</span>
+      {% else %}
+      <span style="color:#666">0</span>
+      {% endif %}
+    </td>
     <td><span class="badge">{{ labels.get(u.status, u.status) }}</span></td>
     <td>{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
-    <td><a class="btn btn-secondary" href="/users/{{ u.id }}" style="padding:6px 12px;font-size:13px">Карточка</a>
-      <a class="btn btn-secondary" href="/users/{{ u.id }}/chat" style="padding:6px 12px;font-size:13px;margin-left:4px">💬</a></td>
+    <td style="white-space:nowrap">
+      <a class="btn btn-secondary" href="/users/{{ u.id }}" style="padding:6px 12px;font-size:13px">Карточка</a>
+      <a class="btn btn-secondary" href="/users/{{ u.id }}/chat" style="padding:6px 12px;font-size:13px;margin-left:4px" title="Написать в Telegram">💬</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="7">Пользователей нет</td></tr>
+  <tr><td colspan="8">Пользователей нет</td></tr>
   {% endfor %}
 </table>
 </div>

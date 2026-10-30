@@ -45,9 +45,23 @@ def referral_link_for_user(user_id: int) -> str:
 
 async def ensure_user_referral_code(session: AsyncSession, user: User) -> str:
     code = referral_code_for_user(user.id)
-    if user.referral_code != code:
-        user.referral_code = code
-        await session.commit()
+    if user.referral_code == code:
+        return code
+    occupant = await session.scalar(
+        select(User.id).where(User.referral_code == code, User.id != user.id)
+    )
+    if occupant is not None:
+        logger.warning(
+            "referral_code %s busy (user %s), normalizing codes",
+            code,
+            occupant,
+        )
+        from database.database import normalize_referral_codes_sync
+
+        await session.run_sync(normalize_referral_codes_sync)
+        await session.refresh(user)
+    user.referral_code = code
+    await session.commit()
     return code
 
 

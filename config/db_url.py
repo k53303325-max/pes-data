@@ -5,7 +5,8 @@ from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
 
-load_dotenv()
+if os.getenv("PES_DATA_POLLER") != "1" and os.getenv("AMVERA") != "1":
+    load_dotenv()
 
 
 def normalize_database_url(url: str) -> str:

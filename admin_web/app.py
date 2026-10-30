@@ -58,7 +58,12 @@ from services.project_service import (
     get_project_detail,
     list_projects,
 )
-from services.admin_stats_service import dashboard_stats, list_users, sales_by_day
+from services.admin_stats_service import (
+    dashboard_stats,
+    list_users,
+    sales_by_day,
+    summarize_user_payments,
+)
 from services.admin_tariff_service import list_all_tariffs_admin, save_tariff, toggle_tariff_active
 from services.brief_admin_service import (
     BANK_STATUS_LABELS,
@@ -390,15 +395,29 @@ async def dashboard(request: Request):
 
 
 @app.get("/users", response_class=HTMLResponse)
-async def users_page(request: Request, q: str = "", status: str = "", msg: str = ""):
+async def users_page(
+    request: Request,
+    q: str = "",
+    status: str = "",
+    pay_filter: str = "",
+    msg: str = "",
+):
     if redirect := auth_guard(request):
         return redirect
     async with async_session() as session:
-        users = await list_users(session, q, status)
+        users = await list_users(session, q, status, pay_filter)
     return render(
         request,
         "users.html",
-        {"users": users, "q": q, "status": status, "labels": STATUS_LABELS, "msg": msg},
+        {
+            "users": users,
+            "q": q,
+            "status": status,
+            "pay_filter": pay_filter,
+            "labels": STATUS_LABELS,
+            "msg": msg,
+            "summarize_user_payments": summarize_user_payments,
+        },
     )
 
 
@@ -436,6 +455,7 @@ async def user_detail(request: Request, user_id: int, msg: str = ""):
             "order_remaining": order_remaining,
             "format_project_price": format_project_price,
             "msg": msg,
+            "summarize_user_payments": summarize_user_payments,
         },
     )
 
@@ -463,7 +483,7 @@ async def chats_page(request: Request, q: str = ""):
 
 
 @app.get("/users/{user_id}/chat", response_class=HTMLResponse)
-async def user_chat_page(request: Request, user_id: int):
+async def user_chat_page(request: Request, user_id: int, msg: str = ""):
     if redirect := auth_guard(request):
         return redirect
     async with async_session() as session:
@@ -481,7 +501,39 @@ async def user_chat_page(request: Request, user_id: int):
             "total": total,
             "labels": STATUS_LABELS,
             "strip_html": strip_html,
+            "msg": msg,
         },
+    )
+
+
+@app.post("/users/{user_id}/chat/send")
+async def user_chat_send(request: Request, user_id: int, text: str = Form(...)):
+    if redirect := auth_guard(request):
+        return redirect
+    body = (text or "").strip()
+    if not body:
+        return RedirectResponse(
+            f"/users/{user_id}/chat?msg={quote('Введите текст сообщения')}",
+            status_code=303,
+        )
+    if len(body) > 4000:
+        return RedirectResponse(
+            f"/users/{user_id}/chat?msg={quote('Слишком длинное сообщение (макс. 4000 символов)')}",
+            status_code=303,
+        )
+    async with async_session() as session:
+        user = await session.get(User, user_id)
+        if not user:
+            return RedirectResponse("/users?msg=Пользователь не найден", status_code=303)
+        result = await _send_user_telegram_message(
+            session, user, body, source="admin.chat"
+        )
+    if not result.get("ok"):
+        err = quote(result.get("error", "Не удалось отправить")[:200])
+        return RedirectResponse(f"/users/{user_id}/chat?msg={err}", status_code=303)
+    return RedirectResponse(
+        f"/users/{user_id}/chat?msg={quote('Сообщение отправлено в Telegram')}",
+        status_code=303,
     )
 
 

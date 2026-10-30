@@ -30,16 +30,26 @@ def _load_env_file(path: Path, *, override: bool) -> None:
             os.environ[key] = value
 
 
+def _is_poller_host() -> bool:
+    return os.getenv("PES_DATA_POLLER") == "1" or os.getenv("AMVERA") == "1"
+
+
 def _bootstrap_env() -> None:
     """Amvera: UI-переменные + файл из «Подгрузить .env» (/data/.env)."""
     os.environ.setdefault("PES_DATA_POLLER", "1")
     os.environ.setdefault("SKIP_INIT_DB", "1")
-    # В репозитории на Amvera иногда лежит dev-.env с sqlite — не использовать
+    # В репозитории / платформе иногда попадает dev DATABASE_URL=sqlite — сбросить
     if "sqlite" in (os.getenv("DATABASE_URL") or "").lower():
         os.environ.pop("DATABASE_URL", None)
+
     _load_env_file(Path("/data/.env"), override=True)
+    if not Path("/data/.env").is_file():
+        _load_env_file(ROOT / "amvera.env", override=False)
+
     load_dotenv(ROOT / ".env.migrate", override=False)
-    if "sqlite" not in (os.getenv("DATABASE_URL") or "").lower():
+
+    # Локальный .env с sqlite никогда не подмешиваем в poller (Amvera / Mac backup)
+    if not _is_poller_host():
         load_dotenv(ROOT / ".env", override=False)
 
     if not os.getenv("DATABASE_URL") and os.getenv("TARGET_DATABASE_URL"):
