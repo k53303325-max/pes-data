@@ -13,20 +13,24 @@ ONREZA запускает **постоянный процесс** (uvicorn + Fas
 В корне уже есть `onreza.toml`:
 
 ```toml
-[project]
-framework = "fastapi"
-
-[build]
-toolchain = "python"
-python_version = "3.12"
-
 [deploy]
-compute = "process"
 runtime = "python"
-application = "admin_web.app:app"
-server = "uvicorn"
-health_check_path = "/health"
+entry = "run_admin.py"
+args = []
 ```
+
+## 1.1 Настройки сборки в панели (важно)
+
+**Настройки → Сборка и развертывание:**
+
+| Поле | Значение |
+|------|----------|
+| Framework Preset | **FastAPI** (или **Python**) |
+| Install Command | оставить авто или `pip install -r requirements.txt` |
+| Build Command | **пусто** (для Python без отдельной сборки) |
+| Output Directory | **пусто** или `.` |
+
+Если стоит **Next.js / npm run build** — деплой ищет `package.json` и падает с ошибкой про `scripts.start`.
 
 ## 2. Переменные окружения
 

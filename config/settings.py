@@ -120,8 +120,9 @@ def get_settings() -> Settings:
         admin_login=os.getenv("ADMIN_LOGIN", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "admin123"),
         admin_secret_key=os.getenv("ADMIN_SECRET_KEY", "change-me-secret-key"),
-        admin_host=os.getenv("ADMIN_HOST", "127.0.0.1"),
-        admin_port=_int_env("ADMIN_PORT", 8000),
+        admin_host=os.getenv("ADMIN_HOST")
+        or ("0.0.0.0" if onreza_host else "127.0.0.1"),
+        admin_port=_int_env("PORT", _int_env("ADMIN_PORT", 8000)),
         is_vercel=is_vercel,
         is_onreza=is_onreza,
         use_webhook=use_webhook,
