@@ -78,9 +78,9 @@ async def cb_create_order(callback: CallbackQuery, state: FSMContext) -> None:
             return
         except Exception:
             logger.exception("Payment creation failed")
-            from services.admin_notify_service import notify_admin_error
+            from services.admin_notify_service import schedule_admin_error
 
-            await notify_admin_error(
+            schedule_admin_error(
                 event="payment_creation",
                 user_label=str(callback.from_user.id),
                 error_message="create_order",

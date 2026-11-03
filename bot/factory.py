@@ -78,23 +78,23 @@ def get_dispatcher() -> Dispatcher:
             except Exception:
                 pass
             try:
-                from services.admin_notify_service import notify_admin_error
-
-                await notify_admin_error(
-                    event="bot_handler",
-                    user_label=user_label,
-                    error_message=str(event.exception),
-                )
-            except Exception:
-                pass
-            try:
-                if event.update.message:
-                    await event.update.message.answer(BOT_SYSTEM_ERROR_TEXT)
-                elif event.update.callback_query:
+                if event.update.callback_query:
                     await event.update.callback_query.answer(
                         BOT_SYSTEM_ERROR_ALERT,
                         show_alert=True,
                     )
+                elif event.update.message:
+                    await event.update.message.answer(BOT_SYSTEM_ERROR_TEXT)
+            except Exception:
+                pass
+            try:
+                from services.admin_notify_service import schedule_admin_error
+
+                schedule_admin_error(
+                    event="bot_handler",
+                    user_label=user_label,
+                    error_message=str(event.exception),
+                )
             except Exception:
                 pass
 

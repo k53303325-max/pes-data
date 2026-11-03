@@ -71,6 +71,7 @@ def _fmt_rub(value: int) -> str:
 
 @router.callback_query(F.data == CB_MAIN_REFERRAL)
 async def cb_referral_program(callback: CallbackQuery) -> None:
+    await callback.answer()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         show_agree = not (user and user.partner_agreed_at)
@@ -78,7 +79,6 @@ async def cb_referral_program(callback: CallbackQuery) -> None:
         referral_program_text(),
         reply_markup=referral_program_keyboard(show_agree=show_agree),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == CB_REF_AGREE)
@@ -98,8 +98,8 @@ async def cb_referral_agree(callback: CallbackQuery) -> None:
         f"{terms_before_link()}\n\n"
         f"<b>Ваша партнёрская ссылка:</b>\n{link}"
     )
-    await callback.message.edit_text(text, reply_markup=referral_link_keyboard())
     await callback.answer()
+    await callback.message.edit_text(text, reply_markup=referral_link_keyboard())
 
 
 @router.callback_query(F.data == CB_REF_LINK)
@@ -115,15 +115,16 @@ async def cb_referral_link(callback: CallbackQuery) -> None:
         await ensure_user_referral_code(session, user)
         link = referral_link_for_user(user.id)
 
+    await callback.answer()
     await callback.message.edit_text(
         f"<b>Ваша партнёрская ссылка:</b>\n{link}",
         reply_markup=referral_link_keyboard(),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == CB_REF_CABINET)
 async def cb_referral_cabinet(callback: CallbackQuery) -> None:
+    await callback.answer()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
@@ -158,4 +159,3 @@ async def cb_referral_cabinet(callback: CallbackQuery) -> None:
         "\n".join(lines),
         reply_markup=referral_program_keyboard(show_agree=not user.partner_agreed_at),
     )
-    await callback.answer()

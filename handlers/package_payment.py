@@ -56,12 +56,12 @@ async def cb_pay_package(callback: CallbackQuery) -> None:
             return
         except Exception:
             logger.exception("Package payment failed code=%s", code)
-            from services.admin_notify_service import notify_admin_error
+            from services.admin_notify_service import schedule_admin_error
 
-            await notify_admin_error(
+            schedule_admin_error(
                 event="package_payment",
                 user_label=str(callback.from_user.id),
-                error_message=code,
+                error_message=str(code),
             )
             await callback.message.answer(BOT_SYSTEM_ERROR_ALERT)
             return

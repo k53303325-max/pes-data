@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import html
+import time
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -15,6 +17,9 @@ from services.telegram_notify import _telegram_post
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+_error_notify_last: dict[str, float] = {}
+_ERROR_NOTIFY_COOLDOWN_SEC = 45.0
 
 
 class NotifyType(str, Enum):
@@ -93,8 +98,16 @@ async def ensure_admin_notify_config() -> None:
         return
     async with async_session() as session:
         cfg = await get_or_create_default_config(session)
-        if cfg and cfg.telegram_id != settings.admin_telegram_id:
+        if not cfg:
+            return
+        changed = False
+        if cfg.telegram_id != settings.admin_telegram_id:
             cfg.telegram_id = settings.admin_telegram_id
+            changed = True
+        if not cfg.error_enabled:
+            cfg.error_enabled = True
+            changed = True
+        if changed:
             await session.commit()
 
 
@@ -149,14 +162,22 @@ async def _send_to_admins(text: str, notify_type: NotifyType) -> None:
             cfg = await get_or_create_default_config(session)
             configs = [cfg] if cfg else []
 
-        targets = [
-            c.telegram_id
-            for c in configs
-            if c.telegram_id and _is_enabled(c, notify_type)
-        ]
+        if notify_type == NotifyType.ERROR:
+            targets = [
+                c.telegram_id
+                for c in configs
+                if c.telegram_id and (c.error_enabled or c.telegram_id == settings.admin_telegram_id)
+            ]
+        else:
+            targets = [
+                c.telegram_id
+                for c in configs
+                if c.telegram_id and _is_enabled(c, notify_type)
+            ]
 
-    if not targets and settings.admin_telegram_id:
-        targets = [settings.admin_telegram_id]
+    if settings.admin_telegram_id and settings.admin_telegram_id not in targets:
+        if notify_type == NotifyType.ERROR or not targets:
+            targets.append(settings.admin_telegram_id)
 
     if not targets:
         logger.warning("Admin notify skipped (%s): no telegram_id in config or ADMIN_ID", notify_type.value)
@@ -395,14 +416,38 @@ async def notify_admin_error(
     user_label: str,
     error_message: str,
 ) -> None:
+    key = f"{event}:{error_message[:120]}"
+    now = time.monotonic()
+    last = _error_notify_last.get(key, 0.0)
+    if now - last < _ERROR_NOTIFY_COOLDOWN_SEC:
+        return
+    _error_notify_last[key] = now
+
     text = (
-        "⚠️ <b>Ошибка системы</b>\n\n"
+        "⚠️ <b>Ошибка в боте</b>\n\n"
         f"Событие:\n{html.escape(event)}\n\n"
         f"Пользователь:\n{html.escape(user_label)}\n\n"
         f"Описание:\n{html.escape(error_message[:500])}\n\n"
         f"Дата:\n{_fmt_date(datetime.now(timezone.utc))}"
     )
     await _send_to_admins(text, NotifyType.ERROR)
+
+
+def schedule_admin_error(
+    *,
+    event: str,
+    user_label: str,
+    error_message: str,
+) -> None:
+    """Не блокирует обработчик апдейта."""
+    asyncio.create_task(
+        notify_admin_error(
+            event=event,
+            user_label=user_label,
+            error_message=error_message,
+        ),
+        name="admin_error_notify",
+    )
 
 
 async def build_daily_report_text(session: AsyncSession) -> str:

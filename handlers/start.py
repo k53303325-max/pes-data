@@ -176,9 +176,9 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
                 logger.exception("YooKassa sync failed on /start user_id=%s", user.id)
     except Exception as exc:
         logger.exception("Error in /start telegram_id=%s", message.from_user.id)
-        from services.admin_notify_service import notify_admin_error
+        from services.admin_notify_service import schedule_admin_error
 
-        await notify_admin_error(
+        schedule_admin_error(
             event="/start",
             user_label=str(message.from_user.id),
             error_message=str(exc),

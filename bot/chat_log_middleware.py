@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware
@@ -50,7 +51,49 @@ def _extract_incoming(event: TelegramObject) -> tuple[int, str, str, str | None,
     return None
 
 
+async def _log_incoming_background(
+    telegram_id: int,
+    content: str,
+    msg_type: str,
+    source: str | None,
+    tg_msg_id: int | None,
+) -> None:
+    try:
+        async with async_session() as session:
+            await log_incoming(
+                session,
+                telegram_id=telegram_id,
+                content=content,
+                message_type=msg_type,
+                source=source,
+                telegram_message_id=tg_msg_id,
+            )
+    except Exception:
+        logger.exception("Failed to log incoming chat telegram_id=%s", telegram_id)
+
+
+async def _log_outgoing_background(
+    chat_id: int,
+    content: str,
+    msg_type: str,
+    source: str,
+) -> None:
+    try:
+        async with async_session() as session:
+            await log_outgoing(
+                session,
+                telegram_id=chat_id,
+                content=content,
+                message_type=msg_type,
+                source=source,
+            )
+    except Exception:
+        logger.exception("Failed to log outgoing chat chat_id=%s", chat_id)
+
+
 class ChatLogMiddleware(BaseMiddleware):
+    """История в БД — в фоне, не блокирует ответ пользователю."""
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
@@ -60,18 +103,10 @@ class ChatLogMiddleware(BaseMiddleware):
         parsed = _extract_incoming(event)
         if parsed:
             telegram_id, content, msg_type, source, tg_msg_id = parsed
-            try:
-                async with async_session() as session:
-                    await log_incoming(
-                        session,
-                        telegram_id=telegram_id,
-                        content=content,
-                        message_type=msg_type,
-                        source=source,
-                        telegram_message_id=tg_msg_id,
-                    )
-            except Exception:
-                logger.exception("Failed to log incoming chat telegram_id=%s", telegram_id)
+            asyncio.create_task(
+                _log_incoming_background(telegram_id, content, msg_type, source, tg_msg_id),
+                name="chat_log_in",
+            )
         return await handler(event, data)
 
 
@@ -90,15 +125,13 @@ class OutgoingChatLogMiddleware(BaseRequestMiddleware):
         if not chat_id or not text:
             return response
 
-        try:
-            async with async_session() as session:
-                await log_outgoing(
-                    session,
-                    telegram_id=int(chat_id),
-                    content=text,
-                    message_type="text" if method_name != "SendDocument" else "document",
-                    source=method_name,
-                )
-        except Exception:
-            logger.exception("Failed to log outgoing chat chat_id=%s", chat_id)
+        asyncio.create_task(
+            _log_outgoing_background(
+                int(chat_id),
+                text,
+                "text" if method_name != "SendDocument" else "document",
+                method_name,
+            ),
+            name="chat_log_out",
+        )
         return response

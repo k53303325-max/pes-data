@@ -129,9 +129,9 @@ async def process_promo_code(message: Message, state: FSMContext) -> None:
             return
         except Exception as exc:
             logger.exception("Promo activation failed")
-            from services.admin_notify_service import notify_admin_error
+            from services.admin_notify_service import schedule_admin_error
 
-            await notify_admin_error(
+            schedule_admin_error(
                 event="promo_activation",
                 user_label=str(message.from_user.id),
                 error_message=str(exc),
