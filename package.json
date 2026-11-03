@@ -1,0 +1,8 @@
+{
+  "name": "pes-data",
+  "private": true,
+  "description": "ONREZA process entry when project runtime is Node; app is Python (run_admin.py).",
+  "scripts": {
+    "start": "python3 run_admin.py"
+  }
+}

@@ -19,18 +19,25 @@ entry = "run_admin.py"
 args = []
 ```
 
-## 1.1 Настройки сборки в панели (важно)
+## 1.1 Что смотреть в «Детали деплоя»
 
-**Настройки → Сборка и развертывание:**
+| Поле на экране | Норма для Пёс Дата | Если не так |
+|----------------|-------------------|-------------|
+| **Версия Node.js** | **Python 3.12** (или блок «Python», не Node) | Проект в режиме **Node PROCESS** → ищет `scripts.start`, игнорирует Python `entry` |
+| **Команда установки** | `pip install … requirements.txt` | Ок |
+| **Размер артефакта 0 B**, логи **0 строк** | — | Падение **до сборки** (не нашли команду запуска), не ошибка uvicorn |
+| Текст про `package.json` / `onreza.toml` | — | См. настройки ниже + в репо есть `package.json` с `"start": "python3 run_admin.py"` как обход для Node-runtime |
+
+**Настройки → Сборка и развертывание → Framework Preset:** **FastAPI** (лучше), не Next.js / не «Other + Node 24».
 
 | Поле | Значение |
 |------|----------|
-| Framework Preset | **FastAPI** (или **Python**) |
-| Install Command | оставить авто или `pip install -r requirements.txt` |
-| Build Command | **пусто** (для Python без отдельной сборки) |
-| Output Directory | **пусто** или `.` |
+| Install Command | `python3 -m pip install -r requirements.txt` (как сейчас) |
+| Build Command | **пусто** |
+| Output Directory | `.` или пусто |
+| Runtime | **Python 3.12** после смены пресета |
 
-Если стоит **Next.js / npm run build** — деплой ищет `package.json` и падает с ошибкой про `scripts.start`.
+Сохранить → **Redeploy** production.
 
 ## 2. Переменные окружения
 

@@ -14,4 +14,3 @@ python_version = "3.12"
 entry = "run_admin.py"
 args = []
 health_check_path = "/health"
-skip_migrations = true
