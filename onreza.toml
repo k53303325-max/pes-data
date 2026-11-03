@@ -1,9 +1,17 @@
+#:schema https://docs.onreza.ru/schemas/onreza-project-v1.schema.json
+
 [project]
 framework = "fastapi"
 
+[build]
+toolchain = "python"
+python_version = "3.12"
+
 [deploy]
+compute = "process"
+runtime = "python"
 python_version = "3.12"
 application = "admin_web.app:app"
 server = "uvicorn"
-compute = "process"
+health_check_path = "/health"
 skip_migrations = true

@@ -13,9 +13,19 @@ ONREZA запускает **постоянный процесс** (uvicorn + Fas
 В корне уже есть `onreza.toml`:
 
 ```toml
+[project]
+framework = "fastapi"
+
+[build]
+toolchain = "python"
+python_version = "3.12"
+
 [deploy]
+compute = "process"
+runtime = "python"
 application = "admin_web.app:app"
 server = "uvicorn"
+health_check_path = "/health"
 ```
 
 ## 2. Переменные окружения
