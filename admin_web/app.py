@@ -272,6 +272,11 @@ async def health(deep: bool = False):
         ),
         "db_ready": _db_initialized,
     }
+    if not settings.telegram_bot_enabled and settings.is_onreza:
+        payload["bot_note"] = (
+            "Telegram на ONREZA выключен (TELEGRAM_BOT_DISABLED). "
+            "Бот: отдельное приложение Amvera → scripts/telegram_poller.py"
+        )
     if deep and settings.bot_token and not settings.telegram_polling:
         try:
             bot = get_bot()
