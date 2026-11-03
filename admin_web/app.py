@@ -117,24 +117,38 @@ _db_initialized = False
 _polling_task: asyncio.Task | None = None
 
 
-@asynccontextmanager
-async def _app_lifespan(_application: FastAPI):
+async def _startup_background() -> None:
+    """Не блокируем bind порта — иначе ONREZA healthcheck падает без логов."""
     from services.admin_notify_service import ensure_admin_notify_config
-    global _polling_task
 
+    global _polling_task
     try:
-        await _ensure_db()
+        await asyncio.wait_for(_ensure_db(), timeout=25.0)
         await ensure_admin_notify_config()
     except Exception:
         logger.exception("Startup init_db failed")
-    if settings.telegram_bot_enabled:
-        if settings.telegram_polling:
-            from bot.polling_runner import run_telegram_polling
+    if not settings.telegram_bot_enabled:
+        return
+    if settings.is_onreza:
+        return
+    if settings.telegram_polling:
+        from bot.polling_runner import run_telegram_polling
 
-            _polling_task = asyncio.create_task(run_telegram_polling())
-        elif settings.use_webhook:
-            asyncio.create_task(_setup_telegram_webhook_once())
+        _polling_task = asyncio.create_task(run_telegram_polling())
+    elif settings.use_webhook:
+        asyncio.create_task(_setup_telegram_webhook_once())
+
+
+@asynccontextmanager
+async def _app_lifespan(_application: FastAPI):
+    global _polling_task
+    startup_task = asyncio.create_task(_startup_background(), name="onreza_startup")
     yield
+    startup_task.cancel()
+    try:
+        await startup_task
+    except asyncio.CancelledError:
+        pass
     if _polling_task and not _polling_task.done():
         _polling_task.cancel()
         try:
