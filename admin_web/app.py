@@ -343,15 +343,6 @@ async def yookassa_webhook(request: Request):
     return {"status": "ok"}
 
 
-@app.get("/health")
-async def health():
-    return {
-        "status": "ok" if settings.database_url else "need_database",
-        "vercel": settings.is_vercel,
-        "app_url": settings.app_url,
-    }
-
-
 def auth_guard(request: Request) -> RedirectResponse | None:
     if not is_authenticated(request):
         return RedirectResponse("/login", status_code=303)
@@ -926,7 +917,7 @@ async def bank_payment_send_invoice(
     request: Request,
     request_id: int,
     message: str = Form(""),
-    file: UploadFile | None = File(None),
+    file: Optional[UploadFile] = File(None),
 ):
     if redirect := auth_guard(request):
         return redirect
@@ -1324,7 +1315,7 @@ async def delivery_preview_view(
     order_id: int = Form(...),
     delivery_type: str = Form(DeliveryType.MESSAGE.value),
     phones_text: str = Form(""),
-    file: UploadFile | None = File(None),
+    file: Optional[UploadFile] = File(None),
 ):
     if redirect := auth_guard(request):
         return redirect
