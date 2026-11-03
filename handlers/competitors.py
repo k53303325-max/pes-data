@@ -62,12 +62,12 @@ async def _start_input_mode(
 
 @router.callback_query(F.data.in_({CB_ADD_COMPETITORS, CB_ADD_MORE}))
 async def cb_add_competitors(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     await _start_input_mode(
         callback.message,
         state,
         telegram_id=callback.from_user.id,
     )
-    await callback.answer()
 
 
 @router.message(AddCompetitorsState.waiting, F.text)

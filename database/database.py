@@ -28,8 +28,15 @@ if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif settings.database_url.startswith("postgresql"):
     connect_args = _postgres_connect_args(settings.database_url)
-    if settings.is_vercel or os.getenv("PES_DATA_POLLER") == "1":
+    if settings.is_vercel:
         engine_kwargs["poolclass"] = NullPool
+    else:
+        engine_kwargs.update(
+            pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+            max_overflow=int(os.getenv("DB_POOL_MAX_OVERFLOW", "3")),
+            pool_pre_ping=True,
+            pool_recycle=600,
+        )
 
 _default_url = "sqlite+aiosqlite:///:memory:"
 if os.getenv("AMVERA") == "1" or os.getenv("PES_DATA_POLLER") == "1":

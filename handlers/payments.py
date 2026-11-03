@@ -41,13 +41,13 @@ async def cb_promo_package(callback: CallbackQuery, state: FSMContext) -> None:
         contact_limit=pkg.contact_count,
         amount=pkg.price,
     )
+    await callback.answer()
     await callback.message.edit_text(
         "🎟 <b>Промокод</b>\n\n"
         "Введите промокод одним сообщением.\n"
         f"Пакет: <b>{pkg.name}</b> · {pkg.contact_count} контактов",
         reply_markup=back_keyboard(),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith(CB_PROMO_PREFIX))
@@ -55,11 +55,11 @@ async def cb_promo_tariff(callback: CallbackQuery, state: FSMContext) -> None:
     tariff_id = int(callback.data.removeprefix(CB_PROMO_PREFIX))
     await state.set_state(PromoState.waiting_code)
     await state.update_data(tariff_id=tariff_id)
+    await callback.answer()
     await callback.message.edit_text(
         "🎟 <b>Промокод</b>\n\nВведите промокод одним сообщением:",
         reply_markup=back_keyboard(),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith(CB_MOCK_PAY_PREFIX))
@@ -77,11 +77,11 @@ async def cb_mock_pay(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == CB_BACK, PromoState.waiting_code)
 async def cb_promo_back(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
+    await callback.answer()
     await callback.message.edit_text(
         "Ввод промокода отменён.\n\nНажмите /start или выберите пакет снова.",
         reply_markup=back_keyboard(),
     )
-    await callback.answer()
 
 
 @router.message(PromoState.waiting_code, F.text)

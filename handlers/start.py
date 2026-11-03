@@ -56,13 +56,16 @@ def _finished_package_text(first_name: str | None, received: int) -> str:
 
 
 async def _get_last_order(session, user_id: int) -> Order | None:
+    from sqlalchemy.orm import selectinload
+
     result = await session.execute(
-        select(Order).where(Order.user_id == user_id).order_by(Order.created_at.desc()).limit(1)
+        select(Order)
+        .options(selectinload(Order.tariff))
+        .where(Order.user_id == user_id)
+        .order_by(Order.created_at.desc())
+        .limit(1)
     )
-    order = result.scalar_one_or_none()
-    if order:
-        await session.refresh(order, ["tariff"])
-    return order
+    return result.scalar_one_or_none()
 
 
 async def _resolve_home(session, user: User) -> tuple[str, object | None]:
@@ -71,7 +74,6 @@ async def _resolve_home(session, user: User) -> tuple[str, object | None]:
 
     active = await get_active_order(session, user.id)
     if active:
-        await session.refresh(active, ["tariff"])
         if user.status != UserStatus.ACTIVE.value:
             user.status = UserStatus.ACTIVE.value
             await session.commit()
@@ -156,24 +158,29 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         from payments.yookassa import is_yookassa_configured
 
         if is_yookassa_configured:
-            try:
-                async with async_session() as session:
-                    from payments.yookassa import sync_user_pending_payments
 
-                    activated = await asyncio.wait_for(
-                        sync_user_pending_payments(session, user.id),
-                        timeout=3.0,
-                    )
-                    if activated:
+            async def _sync_yookassa_after_start() -> None:
+                try:
+                    async with async_session() as session:
+                        from payments.yookassa import sync_user_pending_payments
+
+                        activated = await asyncio.wait_for(
+                            sync_user_pending_payments(session, user.id),
+                            timeout=4.0,
+                        )
+                        if not activated:
+                            return
                         _, order = activated
                         await message.answer(payment_success_text(order.contact_limit))
                         db_user = await get_user_by_telegram_id(session, message.from_user.id)
                         if db_user:
                             await _show_user_home(message, db_user)
-            except asyncio.TimeoutError:
-                logger.warning("YooKassa sync timeout on /start user_id=%s", user.id)
-            except Exception:
-                logger.exception("YooKassa sync failed on /start user_id=%s", user.id)
+                except asyncio.TimeoutError:
+                    logger.warning("YooKassa sync timeout on /start user_id=%s", user.id)
+                except Exception:
+                    logger.exception("YooKassa sync failed on /start user_id=%s", user.id)
+
+            asyncio.create_task(_sync_yookassa_after_start(), name="yookassa_sync_start")
     except Exception as exc:
         logger.exception("Error in /start telegram_id=%s", message.from_user.id)
         from services.admin_notify_service import schedule_admin_error
@@ -192,25 +199,38 @@ async def cb_back(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
-        if not user:
-            from handlers.menu import show_main_menu_message
+    if not user:
+        from handlers.menu import show_main_menu_message
 
-            await show_main_menu_message(callback.message, edit=True)
-        else:
-            from payments.yookassa import sync_user_pending_payments
+        await show_main_menu_message(callback.message, edit=True)
+        return
 
-            try:
+    await _show_user_home(callback.message, user, edit=True)
+
+    from payments.yookassa import is_yookassa_configured
+
+    if not is_yookassa_configured():
+        return
+
+    async def _sync_yookassa_after_back() -> None:
+        try:
+            async with async_session() as session:
+                from payments.yookassa import sync_user_pending_payments
+
                 activated = await asyncio.wait_for(
                     sync_user_pending_payments(session, user.id),
-                    timeout=8.0,
+                    timeout=4.0,
                 )
-            except asyncio.TimeoutError:
-                logger.warning("YooKassa sync timeout on back user_id=%s", user.id)
-                activated = None
-            if activated:
+                if not activated:
+                    return
                 _, order = activated
-                await callback.message.answer(
-                    payment_success_text(order.contact_limit)
-                )
-                user = await get_user_by_telegram_id(session, callback.from_user.id)
-            await _show_user_home(callback.message, user, edit=True)
+                await callback.message.answer(payment_success_text(order.contact_limit))
+                db_user = await get_user_by_telegram_id(session, callback.from_user.id)
+                if db_user:
+                    await _show_user_home(callback.message, db_user, edit=True)
+        except asyncio.TimeoutError:
+            logger.warning("YooKassa sync timeout on back user_id=%s", user.id)
+        except Exception:
+            logger.exception("YooKassa sync failed on back user_id=%s", user.id)
+
+    asyncio.create_task(_sync_yookassa_after_back(), name="yookassa_sync_back")

@@ -67,6 +67,7 @@ async def touch_user(session: AsyncSession, user: User) -> None:
 async def get_active_order(session: AsyncSession, user_id: int) -> Order | None:
     result = await session.execute(
         select(Order)
+        .options(selectinload(Order.tariff))
         .where(
             Order.user_id == user_id,
             Order.status.in_([OrderStatus.ACTIVE.value, OrderStatus.IN_PROGRESS.value]),

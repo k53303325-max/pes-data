@@ -50,14 +50,14 @@ def package_detail_text(code: str) -> str | None:
 
 @router.callback_query(F.data == CB_PKG_TRIAL_CARD)
 async def cb_trial_card(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(TRIAL_CARD_TEXT, reply_markup=trial_card_keyboard())
     await callback.answer()
+    await callback.message.edit_text(TRIAL_CARD_TEXT, reply_markup=trial_card_keyboard())
 
 
 @router.callback_query(F.data == CB_PKG_LIST)
 async def cb_pkg_list(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(PACKAGES_INTRO_TEXT, reply_markup=packages_list_keyboard())
     await callback.answer()
+    await callback.message.edit_text(PACKAGES_INTRO_TEXT, reply_markup=packages_list_keyboard())
 
 
 @router.callback_query(F.data.startswith(CB_PKG_PREFIX))
@@ -67,8 +67,8 @@ async def cb_pkg_detail(callback: CallbackQuery) -> None:
     if not text:
         await callback.answer("Пакет не найден", show_alert=True)
         return
-    await callback.message.edit_text(text, reply_markup=package_card_actions_keyboard(code))
     await callback.answer()
+    await callback.message.edit_text(text, reply_markup=package_card_actions_keyboard(code))
 
 
 async def _start_trial_brief(callback: CallbackQuery) -> None:
@@ -78,6 +78,7 @@ async def _start_trial_brief(callback: CallbackQuery) -> None:
             await callback.answer("Нажмите /start", show_alert=True)
             return
         submitted = await get_latest_submitted_brief(session, user.id)
+    await callback.answer()
     if submitted:
         from services.admin_notify_service import notify_admin_trial_interest
 
@@ -93,7 +94,6 @@ async def _start_trial_brief(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == CB_PKG_TRIAL_START)
 async def cb_trial_start(callback: CallbackQuery) -> None:
     await _start_trial_brief(callback)
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith(CB_PKG_DISCUSS))
@@ -111,6 +111,7 @@ async def cb_discuss_package(callback: CallbackQuery) -> None:
             return
         submitted = await get_latest_submitted_brief(session, user.id)
 
+    await callback.answer()
     if submitted:
         from services.admin_notify_service import notify_admin_package_interest
 
@@ -118,7 +119,6 @@ async def cb_discuss_package(callback: CallbackQuery) -> None:
         await callback.message.answer(
             f"Интерес к пакету «{pkg.name}» передан команде. Мы свяжемся с вами в Telegram.",
         )
-        await callback.answer()
         return
 
     await start_brief_flow(
@@ -128,4 +128,3 @@ async def cb_discuss_package(callback: CallbackQuery) -> None:
         package_code=code,
         edit=False,
     )
-    await callback.answer()

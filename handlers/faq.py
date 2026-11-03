@@ -12,8 +12,8 @@ router = Router()
 
 @router.callback_query(F.data == CB_FAQ_LIST)
 async def cb_faq_list(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(FAQ_LIST_INTRO, reply_markup=faq_list_keyboard())
     await callback.answer()
+    await callback.message.edit_text(FAQ_LIST_INTRO, reply_markup=faq_list_keyboard())
 
 
 @router.callback_query(F.data == CB_FAQ_EVAL)
@@ -27,5 +27,5 @@ async def cb_faq_item(callback: CallbackQuery) -> None:
         await callback.answer()
         return
     title = next((t for k, t in FAQ_TOPICS if k == key), "Вопрос")
-    await callback.message.edit_text(f"<b>{title}</b>\n\n{answer}", reply_markup=faq_answer_keyboard())
     await callback.answer()
+    await callback.message.edit_text(f"<b>{title}</b>\n\n{answer}", reply_markup=faq_answer_keyboard())

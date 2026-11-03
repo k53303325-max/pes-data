@@ -115,8 +115,8 @@ async def cb_my_competitors(callback: CallbackQuery) -> None:
             "Вы ещё не добавили номера конкурентов."
         )
 
-    await callback.message.edit_text(text, reply_markup=competitors_keyboard())
     await callback.answer()
+    await callback.message.edit_text(text, reply_markup=competitors_keyboard())
 
 
 @router.callback_query(F.data.in_({CB_BUY_PACKAGE, CB_BUY_NEW}))
@@ -136,5 +136,5 @@ async def cb_buy_package(callback: CallbackQuery, state: FSMContext) -> None:
     from keyboards.menu_keyboard import packages_list_keyboard
 
     await state.clear()
-    await callback.message.edit_text(PACKAGES_INTRO_TEXT, reply_markup=packages_list_keyboard())
     await callback.answer()
+    await callback.message.edit_text(PACKAGES_INTRO_TEXT, reply_markup=packages_list_keyboard())

@@ -58,7 +58,7 @@ async def run_telegram_polling() -> None:
         while True:
             try:
                 n = await process_outbox_batch(bot)
-                await asyncio.sleep(0.5 if n else 1.2)
+                await asyncio.sleep(0.35 if n else 0.9)
             except asyncio.CancelledError:
                 raise
             except Exception:

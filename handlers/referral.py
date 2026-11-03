@@ -104,18 +104,17 @@ async def cb_referral_agree(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == CB_REF_LINK)
 async def cb_referral_link(callback: CallbackQuery) -> None:
+    await callback.answer()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
+            await callback.message.answer("Нажмите /start")
             return
         if not user.partner_agreed_at:
-            await callback.answer("Сначала примите условия", show_alert=True)
+            await callback.message.answer("Сначала примите условия партнёрской программы.")
             return
         await ensure_user_referral_code(session, user)
         link = referral_link_for_user(user.id)
-
-    await callback.answer()
     await callback.message.edit_text(
         f"<b>Ваша партнёрская ссылка:</b>\n{link}",
         reply_markup=referral_link_keyboard(),
