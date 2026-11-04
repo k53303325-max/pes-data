@@ -41,9 +41,16 @@ def _bootstrap_env() -> None:
     if "sqlite" in (os.getenv("DATABASE_URL") or "").lower():
         os.environ.pop("DATABASE_URL", None)
 
-    _load_env_file(Path("/data/.env"), override=True)
-    if not Path("/data/.env").is_file():
-        _load_env_file(ROOT / "amvera.env", override=False)
+    for data_env in (
+        Path("/data/.env"),
+        Path("/data/env"),
+        Path("/data/amvera.env"),
+    ):
+        if data_env.is_file():
+            load_dotenv(data_env, override=True)
+            _load_env_file(data_env, override=True)
+    if not (os.getenv("BOT_TOKEN") or "").strip():
+        _load_env_file(ROOT / "amvera.env", override=True)
 
     load_dotenv(ROOT / ".env.migrate", override=False)
 
@@ -59,14 +66,15 @@ def _require_env() -> None:
     missing = [k for k in ("BOT_TOKEN", "DATABASE_URL") if not (os.getenv(k) or "").strip()]
     if missing:
         hint = (
-            "Amvera: Переменные → BOT_TOKEN и DATABASE_URL (этап «Запуск»), "
-            "затем Управление → Перезапустить. Или «Подгрузить .env» в /data/.env"
+            "Amvera: (1) Репозиторий → папка Data → загрузить файл .env (2 строки BOT_TOKEN, DATABASE_URL), "
+            "или (2) Переменные → отдельно BOT_TOKEN и DATABASE_URL → Перезапустить"
         )
         print(f"Не задано: {', '.join(missing)}. {hint}", file=sys.stderr)
         if os.getenv("AMVERA"):
+            data_paths = ["/data/.env", "/data/env", "/data/amvera.env"]
+            exists = {p: Path(p).is_file() for p in data_paths}
             print(
-                f"Диагностика: AMVERA={os.getenv('AMVERA')!r}, "
-                f"/data/.env exists={Path('/data/.env').is_file()}",
+                f"Диагностика: AMVERA={os.getenv('AMVERA')!r}, data files={exists}",
                 file=sys.stderr,
             )
         raise SystemExit(2)
@@ -83,22 +91,78 @@ def _require_env() -> None:
 _bootstrap_env()
 _require_env()
 
-from database.database import init_db
+from urllib.parse import urlparse
+
+from sqlalchemy import text
+
+from database.database import engine, init_db
 from bot.polling_runner import run_telegram_polling
 from utils.logger import setup_logging, get_logger
+
+
+async def verify_db_connectivity(logger) -> bool:
+    db_url = os.environ.get("DATABASE_URL", "")
+    host = urlparse(db_url).hostname or "?"
+    port = urlparse(db_url).port or 5432
+    connect_timeout = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "45"))
+    try:
+        async with asyncio.timeout(connect_timeout + 15):
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+        logger.info("Telegram poller: DB ping ok (host=%s port=%s)", host, port)
+        return True
+    except Exception as exc:
+        logger.error(
+            "Telegram poller: DB ping FAILED host=%s port=%s — %s. "
+            "Проверьте DATABASE_URL на Amvera (пароль: ! → %%21), sslmode=require; "
+            "ONREZA /health db_ready=true — та же строка должна работать отсюда.",
+            host,
+            port,
+            exc,
+        )
+        return False
+
+
+def _log_database_target(logger) -> None:
+    db_url = os.environ.get("DATABASE_URL", "")
+    safe = db_url.replace("postgresql+asyncpg://", "postgresql://")
+    parsed = urlparse(safe)
+    db_name = (parsed.path or "").lstrip("/") or "?"
+    logger.info(
+        "Telegram poller: DATABASE_URL → host=%s port=%s db=%s user=%s",
+        parsed.hostname or "?",
+        parsed.port or 5432,
+        db_name,
+        parsed.username or "?",
+    )
 
 
 async def main() -> None:
     setup_logging()
     logger = get_logger(__name__)
+    _log_database_target(logger)
+    db_ok = await verify_db_connectivity(logger)
     if os.getenv("SKIP_INIT_DB") == "1":
         logger.info("Telegram poller: skip init_db (SKIP_INIT_DB=1)")
+    elif db_ok:
+        try:
+            await asyncio.wait_for(init_db(), timeout=180.0)
+            logger.info("Telegram poller: DB schema ready")
+        except asyncio.TimeoutError:
+            logger.error("Telegram poller: init_db timed out (schema/migrations)")
+        except Exception:
+            logger.exception("Telegram poller: init_db failed")
     else:
-        await init_db()
-        logger.info("Telegram poller: DB schema ready")
-    from services.admin_notify_service import ensure_admin_notify_config
+        logger.warning(
+            "Telegram poller: polling starts without DB — кнопки с базой будут падать до исправления DATABASE_URL"
+        )
+    if db_ok:
+        from services.admin_notify_service import ensure_admin_notify_config
 
-    await ensure_admin_notify_config()
+        try:
+            await ensure_admin_notify_config()
+        except Exception:
+            logger.exception("ensure_admin_notify_config failed (non-fatal)")
     logger.info("Telegram poller: starting polling…")
     await run_telegram_polling()
 

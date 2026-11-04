@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
@@ -260,7 +261,14 @@ async def init_db_middleware(request: Request, call_next):
 
 @app.get("/health")
 async def health(deep: bool = False):
-    platform = "onreza" if settings.is_onreza else ("vercel" if settings.is_vercel else "local")
+    if os.getenv("PES_DATA_VPS") == "1":
+        platform = "timeweb"
+    elif settings.is_onreza:
+        platform = "onreza"
+    elif settings.is_vercel:
+        platform = "vercel"
+    else:
+        platform = "local"
     payload: dict = {
         "ok": True,
         "platform": platform,
@@ -272,10 +280,12 @@ async def health(deep: bool = False):
         ),
         "db_ready": _db_initialized,
     }
-    if not settings.telegram_bot_enabled and settings.is_onreza:
+    if not settings.telegram_bot_enabled and os.getenv("PES_DATA_VPS") == "1":
+        payload["bot_note"] = "Telegram: systemd pes-data-poller (Timeweb VPS)."
+    elif not settings.telegram_bot_enabled and settings.is_onreza:
         payload["bot_note"] = (
             "Telegram на ONREZA выключен (TELEGRAM_BOT_DISABLED). "
-            "Бот: отдельное приложение Amvera → scripts/telegram_poller.py"
+            "Бот: отдельный poller (VPS)."
         )
     if deep and settings.bot_token and not settings.telegram_polling:
         try:

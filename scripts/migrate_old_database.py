@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Перенос данных из старой Postgres (Neon) в новую (ONREZA).
+Перенос данных между Postgres (Neon / ONREZA Kaiki → Timeweb и т.д.).
 
 Использование:
-  export SOURCE_DATABASE_URL='postgresql://...neon...'   # старая база
-  export TARGET_DATABASE_URL='postgresql://...onreza...'  # новая база
+  export SOURCE_DATABASE_URL='postgresql://...'   # старая база (Kaiki)
+  export TARGET_DATABASE_URL='postgresql://...'   # новая (Timeweb)
   ./venv/bin/python scripts/migrate_old_database.py
 
 Или положите SOURCE в .env.vercel.prod, TARGET — в .env.migrate (не коммитьте).
@@ -40,7 +40,9 @@ def normalize_url(url: str) -> tuple[str, bool]:
     host = (parsed.hostname or "").lower()
     use_ssl = (
         "neon.tech" in host
-        or "kaiki.ru" in host
+        or         "kaiki.ru" in host
+        or "timeweb.cloud" in host
+        or host.endswith(".twc1.net")
         or "sslmode=require" in (parsed.query or "").lower()
     )
     clean = urlunparse(parsed._replace(query=""))

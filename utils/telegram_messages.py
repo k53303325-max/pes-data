@@ -17,6 +17,9 @@ async def safe_callback_answer(
     try:
         await callback.answer(text, show_alert=show_alert)
     except TelegramBadRequest as exc:
+        err = str(exc).lower()
+        if "query is too old" in err or "query id is invalid" in err:
+            return
         logger.debug("callback.answer ignored: %s", exc)
     except Exception:
         logger.exception("callback.answer failed")
@@ -49,13 +52,10 @@ async def respond_to_callback(
     text: str,
     *,
     reply_markup: InlineKeyboardMarkup | None = None,
-    answer_text: str | None = None,
-    show_alert: bool = False,
+    ack: bool = True,
 ) -> None:
-    """Ответ на inline-кнопку: ack + edit или новое сообщение в чат."""
-    if answer_text is not None or show_alert:
-        await safe_callback_answer(callback, answer_text, show_alert=show_alert)
-    else:
+    """Редактировать сообщение кнопки или отправить новое (без двойного answer, если включён CallbackAnswerMiddleware)."""
+    if ack:
         await safe_callback_answer(callback)
 
     msg = callback.message
@@ -74,8 +74,11 @@ async def respond_to_callback(
     if isinstance(msg, InaccessibleMessage) or msg is None:
         logger.info("callback message inaccessible, send_message user_id=%s", callback.from_user.id)
 
-    await callback.bot.send_message(
-        callback.from_user.id,
-        text,
-        reply_markup=reply_markup,
-    )
+    try:
+        await callback.bot.send_message(
+            callback.from_user.id,
+            text,
+            reply_markup=reply_markup,
+        )
+    except TelegramBadRequest as exc:
+        logger.exception("send_message after callback failed: %s", exc)

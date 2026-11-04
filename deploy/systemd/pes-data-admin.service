@@ -1,0 +1,17 @@
+[Unit]
+Description=Pes Data admin (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pesdata
+WorkingDirectory=/opt/pes-data
+Environment=PES_DATA_VPS=1
+EnvironmentFile=/etc/pes-data.env
+ExecStart=/opt/pes-data/venv/bin/python run_admin.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

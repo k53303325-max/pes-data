@@ -11,6 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.postgres_storage import PostgresStorage
 from aiogram.types import BotCommand, ErrorEvent
+from aiogram.utils.callback_answer import CallbackAnswerMiddleware
 
 from bot.chat_log_middleware import ChatLogMiddleware, OutgoingChatLogMiddleware
 
@@ -99,6 +100,7 @@ def get_dispatcher() -> Dispatcher:
                 pass
 
         _dp.errors.register(errors_handler)
+        _dp.callback_query.outer_middleware(CallbackAnswerMiddleware(pre=True))
         chat_log = ChatLogMiddleware()
         _dp.message.middleware(chat_log)
         _dp.callback_query.middleware(chat_log)

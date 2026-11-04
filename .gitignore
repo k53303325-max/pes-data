@@ -30,3 +30,5 @@ exports/
 .env.local
 .env*
 amvera.env
+deploy/amvera-upload.env
+deploy/amvera-data-dotenv

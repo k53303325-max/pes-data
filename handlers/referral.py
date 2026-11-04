@@ -3,11 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from aiogram import F, Router
-from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
 from database.database import async_session
-from keyboards.menu_keyboard import CB_MAIN_REFERRAL
 from keyboards.referral_keyboard import (
     CB_REF_AGREE,
     CB_REF_CABINET,
@@ -73,9 +71,7 @@ def _fmt_rub(value: int) -> str:
     return f"{value:,} ₽".replace(",", " ")
 
 
-@router.callback_query(F.data == CB_MAIN_REFERRAL)
-async def cb_referral_program(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.clear()
+async def handle_referral_program(callback: CallbackQuery) -> None:
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, callback.from_user.id)
@@ -84,9 +80,10 @@ async def cb_referral_program(callback: CallbackQuery, state: FSMContext) -> Non
             callback,
             referral_program_text(),
             reply_markup=referral_program_keyboard(show_agree=show_agree),
+            ack=False,
         )
     except Exception:
-        logger.exception("cb_referral_program failed telegram_id=%s", callback.from_user.id)
+        logger.exception("handle_referral_program failed telegram_id=%s", callback.from_user.id)
         from keyboards.menu_keyboard import main_menu_keyboard
         from services.messages import BOT_SYSTEM_ERROR_TEXT
 
@@ -94,6 +91,7 @@ async def cb_referral_program(callback: CallbackQuery, state: FSMContext) -> Non
             callback,
             BOT_SYSTEM_ERROR_TEXT,
             reply_markup=main_menu_keyboard(),
+            ack=False,
         )
 
 
@@ -114,7 +112,7 @@ async def cb_referral_agree(callback: CallbackQuery) -> None:
         f"{terms_before_link()}\n\n"
         f"<b>Ваша партнёрская ссылка:</b>\n{link}"
     )
-    await respond_to_callback(callback, text, reply_markup=referral_link_keyboard())
+    await respond_to_callback(callback, text, reply_markup=referral_link_keyboard(), ack=False)
 
 
 @router.callback_query(F.data == CB_REF_LINK)
@@ -133,6 +131,7 @@ async def cb_referral_link(callback: CallbackQuery) -> None:
         callback,
         f"<b>Ваша партнёрская ссылка:</b>\n{link}",
         reply_markup=referral_link_keyboard(),
+        ack=False,
     )
 
 
@@ -172,4 +171,5 @@ async def cb_referral_cabinet(callback: CallbackQuery) -> None:
         callback,
         "\n".join(lines),
         reply_markup=referral_program_keyboard(show_agree=not user.partner_agreed_at),
+        ack=False,
     )

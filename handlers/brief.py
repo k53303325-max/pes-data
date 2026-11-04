@@ -17,7 +17,6 @@ from keyboards.menu_keyboard import (
     CB_BRIEF_SALES_PREFIX,
     CB_BRIEF_START,
     CB_MAIN_MENU,
-    CB_MAIN_NICHE,
     brief_competitors_keyboard,
     brief_edit_fields_keyboard,
     brief_failed_keyboard,
@@ -93,12 +92,7 @@ async def start_brief_flow(
         user = await get_user_by_telegram_id(session, telegram_id)
         if not user:
             if callback is not None:
-                await respond_to_callback(
-                    callback,
-                    "Сначала нажмите /start",
-                    answer_text="Нажмите /start",
-                    show_alert=True,
-                )
+                await safe_callback_answer(callback, "Нажмите /start", show_alert=True)
             elif message:
                 await message.answer("Нажмите /start")
             return
@@ -120,9 +114,7 @@ async def start_brief_flow(
         await message.answer(text, reply_markup=kb)
 
 
-@router.callback_query(F.data == CB_MAIN_NICHE)
-async def cb_niche(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.clear()
+async def handle_niche_start(callback: CallbackQuery) -> None:
     try:
         await start_brief_flow(
             callback.message,
@@ -132,7 +124,7 @@ async def cb_niche(callback: CallbackQuery, state: FSMContext) -> None:
             callback=callback,
         )
     except Exception:
-        logger.exception("cb_niche failed telegram_id=%s", callback.from_user.id)
+        logger.exception("handle_niche_start failed telegram_id=%s", callback.from_user.id)
         from keyboards.menu_keyboard import main_menu_keyboard
 
         await respond_to_callback(

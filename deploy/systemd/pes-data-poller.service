@@ -7,7 +7,9 @@ Wants=network-online.target
 Type=simple
 User=pesdata
 WorkingDirectory=/opt/pes-data
-EnvironmentFile=/etc/pes-data-poller.env
+Environment=PES_DATA_POLLER=1
+EnvironmentFile=-/etc/pes-data.env
+EnvironmentFile=-/etc/pes-data-poller.env
 ExecStart=/opt/pes-data/venv/bin/python scripts/telegram_poller.py
 Restart=always
 RestartSec=10

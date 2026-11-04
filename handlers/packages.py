@@ -8,7 +8,6 @@ from database.database import async_session
 from handlers.brief import start_brief_flow
 from keyboards.package_payment_keyboard import package_card_actions_keyboard
 from keyboards.menu_keyboard import (
-    CB_MAIN_TRIAL,
     CB_PKG_DISCUSS,
     CB_PKG_LIST,
     CB_PKG_PREFIX,
@@ -76,6 +75,10 @@ async def cb_pkg_detail(callback: CallbackQuery) -> None:
     await callback.message.edit_text(text, reply_markup=package_card_actions_keyboard(code))
 
 
+async def handle_trial_start(callback: CallbackQuery) -> None:
+    await _start_trial_brief(callback)
+
+
 async def _start_trial_brief(callback: CallbackQuery) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
@@ -116,7 +119,6 @@ async def _start_trial_brief(callback: CallbackQuery) -> None:
         )
 
 
-@router.callback_query(F.data == CB_MAIN_TRIAL)
 @router.callback_query(F.data == CB_PKG_TRIAL_START)
 async def cb_trial_start(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()

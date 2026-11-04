@@ -2,13 +2,19 @@
 
 Telegram-бот + админ-панель для SaaS-платформы лидогенерации.
 
-## Всё на Vercel
+## Продакшен
 
-См. **[VERCEL.md](VERCEL.md)** — подключение Postgres через Vercel Storage (без neon.tech).
+См. **[docs/TIMEWEB.md](docs/TIMEWEB.md)** — **VPS Timeweb** (админка + bot 24/7) + **PostgreSQL ONREZA (Kaiki)** + **GitHub**.
 
-**Админка:** https://pes-data.vercel.app/login
+## Локальная разработка
 
-## Локальный запуск
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # SQLite локально
+python run_admin.py    # http://127.0.0.1:8000
+python scripts/telegram_poller.py   # бот отдельно
+```
 
 ## Этап 1 — /start
 
@@ -29,24 +35,8 @@ Telegram-бот + админ-панель для SaaS-платформы лид�
 | Отправка контактов | Загрузка TXT/CSV/XLSX → отправка в Telegram |
 | Статистика | Продажи, популярные тарифы |
 
-## Структура
+## Устаревшие деплои
 
-```
-handlers/start.py       — этап 1 пользовательского пути
-keyboards/              — inline-клавиатуры
-database/               — модели и SQLite
-services/               — бизнес-логика
-admin_web/              — FastAPI админка
-```
-
-## Демо-данные (для теста админки)
-
-```bash
-python scripts/seed_demo.py
-```
-
-## Важно
-
-- Бот и админка используют одну БД (`pes_data.db`)
-- При смене схемы удалите старый `pes_data.db` и перезапустите
-- Не запускайте несколько копий бота одновременно
+- [VERCEL.md](VERCEL.md) — не используется
+- [ONREZA.md](ONREZA.md) — заменён на Timeweb
+- [docs/AMVERA_BOT.md](docs/AMVERA_BOT.md) — не используется

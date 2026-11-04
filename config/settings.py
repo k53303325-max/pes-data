@@ -78,10 +78,14 @@ class Settings:
 def get_settings() -> Settings:
     admin_telegram_id, admin_username = _parse_admin_settings()
     is_vercel = os.getenv("VERCEL") == "1"
+    is_vps = os.getenv("PES_DATA_VPS") == "1"
     is_onreza = (
-        os.getenv("ONREZA") == "1"
-        or bool(_clean_env(os.getenv("NRZ_PROJECT_ID")))
-        or os.getenv("USER") == "onreza"
+        not is_vps
+        and (
+            os.getenv("ONREZA") == "1"
+            or bool(_clean_env(os.getenv("NRZ_PROJECT_ID")))
+            or os.getenv("USER") == "onreza"
+        )
     )
     database_url = resolve_database_url()
     hosted_on_onreza_db = "kaiki.ru" in database_url
@@ -121,7 +125,7 @@ def get_settings() -> Settings:
         admin_password=os.getenv("ADMIN_PASSWORD", "admin123"),
         admin_secret_key=os.getenv("ADMIN_SECRET_KEY", "change-me-secret-key"),
         admin_host=os.getenv("ADMIN_HOST")
-        or ("0.0.0.0" if onreza_host else "127.0.0.1"),
+        or ("0.0.0.0" if (onreza_host or is_vps) else "127.0.0.1"),
         admin_port=_int_env("PORT", _int_env("ADMIN_PORT", 8000)),
         is_vercel=is_vercel,
         is_onreza=is_onreza,
