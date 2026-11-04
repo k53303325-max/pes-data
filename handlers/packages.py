@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
 from database.database import async_session
@@ -20,7 +21,11 @@ from services.brief_service import get_latest_submitted_brief
 from services.messages import PACKAGES_INTRO_TEXT, TRIAL_CARD_TEXT
 from services.package_catalog import get_package
 from services.user_service import get_user_by_telegram_id
+from services.messages import BOT_SYSTEM_ERROR_TEXT
+from utils.logger import get_logger
+from utils.telegram_messages import safe_callback_answer, safe_edit_or_send
 
+logger = get_logger(__name__)
 router = Router()
 
 
@@ -75,24 +80,34 @@ async def _start_trial_brief(callback: CallbackQuery) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
+            await safe_callback_answer(callback, "Нажмите /start", show_alert=True)
             return
         submitted = await get_latest_submitted_brief(session, user.id)
-    await callback.answer()
+    await safe_callback_answer(callback)
     if submitted:
         from services.admin_notify_service import notify_admin_trial_interest
 
-        await notify_admin_trial_interest(user, submitted.request_code)
-        await callback.message.answer(
-            "Вы уже отправляли вводные. Команда получила запрос на триал и свяжется с вами в Telegram.",
-        )
+        try:
+            await notify_admin_trial_interest(user, submitted.request_code)
+        except Exception:
+            logger.exception("notify_admin_trial_interest failed user=%s", user.id)
+        if callback.message:
+            await callback.message.answer(
+                "Вы уже отправляли вводные. Команда получила запрос на триал и свяжется с вами в Telegram.",
+            )
         return
-    await start_brief_flow(callback.message, callback.from_user.id, is_trial=True, edit=True)
+    try:
+        await start_brief_flow(callback.message, callback.from_user.id, is_trial=True, edit=True)
+    except Exception:
+        logger.exception("start_brief_flow trial failed telegram_id=%s", callback.from_user.id)
+        if callback.message:
+            await callback.message.answer(BOT_SYSTEM_ERROR_TEXT)
 
 
 @router.callback_query(F.data == CB_MAIN_TRIAL)
 @router.callback_query(F.data == CB_PKG_TRIAL_START)
-async def cb_trial_start(callback: CallbackQuery) -> None:
+async def cb_trial_start(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
     await _start_trial_brief(callback)
 
 

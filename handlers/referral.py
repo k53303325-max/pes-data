@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
 from database.database import async_session
@@ -18,6 +19,7 @@ from config.settings import settings
 from services.referral_commission_service import get_partner_cabinet_stats, list_partner_commissions
 from services.referral_service import ensure_user_referral_code, referral_link_for_user
 from services.user_service import get_user_by_telegram_id
+from utils.telegram_messages import safe_callback_answer, safe_edit_or_send
 
 router = Router()
 
@@ -70,12 +72,14 @@ def _fmt_rub(value: int) -> str:
 
 
 @router.callback_query(F.data == CB_MAIN_REFERRAL)
-async def cb_referral_program(callback: CallbackQuery) -> None:
-    await callback.answer()
+async def cb_referral_program(callback: CallbackQuery, state: FSMContext) -> None:
+    await safe_callback_answer(callback)
+    await state.clear()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         show_agree = not (user and user.partner_agreed_at)
-    await callback.message.edit_text(
+    await safe_edit_or_send(
+        callback.message,
         referral_program_text(),
         reply_markup=referral_program_keyboard(show_agree=show_agree),
     )
@@ -86,7 +90,7 @@ async def cb_referral_agree(callback: CallbackQuery) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
+            await safe_callback_answer(callback, "Нажмите /start", show_alert=True)
             return
         if not user.partner_agreed_at:
             user.partner_agreed_at = datetime.now(timezone.utc)
@@ -98,24 +102,25 @@ async def cb_referral_agree(callback: CallbackQuery) -> None:
         f"{terms_before_link()}\n\n"
         f"<b>Ваша партнёрская ссылка:</b>\n{link}"
     )
-    await callback.answer()
-    await callback.message.edit_text(text, reply_markup=referral_link_keyboard())
+    await safe_callback_answer(callback)
+    await safe_edit_or_send(callback.message, text, reply_markup=referral_link_keyboard())
 
 
 @router.callback_query(F.data == CB_REF_LINK)
 async def cb_referral_link(callback: CallbackQuery) -> None:
-    await callback.answer()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.message.answer("Нажмите /start")
+            await safe_callback_answer(callback, "Нажмите /start", show_alert=True)
             return
         if not user.partner_agreed_at:
-            await callback.message.answer("Сначала примите условия партнёрской программы.")
+            await safe_callback_answer(callback, "Сначала примите условия", show_alert=True)
             return
         await ensure_user_referral_code(session, user)
         link = referral_link_for_user(user.id)
-    await callback.message.edit_text(
+    await safe_callback_answer(callback)
+    await safe_edit_or_send(
+        callback.message,
         f"<b>Ваша партнёрская ссылка:</b>\n{link}",
         reply_markup=referral_link_keyboard(),
     )
@@ -123,14 +128,14 @@ async def cb_referral_link(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == CB_REF_CABINET)
 async def cb_referral_cabinet(callback: CallbackQuery) -> None:
-    await callback.answer()
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
-            await callback.answer("Нажмите /start", show_alert=True)
+            await safe_callback_answer(callback, "Нажмите /start", show_alert=True)
             return
         stats = await get_partner_cabinet_stats(session, user.id)
         rows = await list_partner_commissions(session, user.id, limit=8)
+    await safe_callback_answer(callback)
 
     lines = [
         "<b>Кабинет партнёра</b>",
@@ -154,7 +159,8 @@ async def cb_referral_cabinet(callback: CallbackQuery) -> None:
                 f"от {_fmt_rub(r.paid_amount)} · {r.created_at.strftime('%d.%m.%Y')}"
             )
 
-    await callback.message.edit_text(
+    await safe_edit_or_send(
+        callback.message,
         "\n".join(lines),
         reply_markup=referral_program_keyboard(show_agree=not user.partner_agreed_at),
     )
