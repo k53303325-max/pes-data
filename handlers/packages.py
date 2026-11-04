@@ -83,8 +83,8 @@ async def _start_trial_brief(callback: CallbackQuery) -> None:
             await safe_callback_answer(callback, "Нажмите /start", show_alert=True)
             return
         submitted = await get_latest_submitted_brief(session, user.id)
-    await safe_callback_answer(callback)
     if submitted:
+        await safe_callback_answer(callback)
         from services.admin_notify_service import notify_admin_trial_interest
 
         try:
@@ -97,11 +97,23 @@ async def _start_trial_brief(callback: CallbackQuery) -> None:
             )
         return
     try:
-        await start_brief_flow(callback.message, callback.from_user.id, is_trial=True, edit=True)
+        await start_brief_flow(
+            callback.message,
+            callback.from_user.id,
+            is_trial=True,
+            edit=True,
+            callback=callback,
+        )
     except Exception:
         logger.exception("start_brief_flow trial failed telegram_id=%s", callback.from_user.id)
-        if callback.message:
-            await callback.message.answer(BOT_SYSTEM_ERROR_TEXT)
+        from keyboards.menu_keyboard import main_menu_keyboard
+        from utils.telegram_messages import respond_to_callback
+
+        await respond_to_callback(
+            callback,
+            BOT_SYSTEM_ERROR_TEXT,
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == CB_MAIN_TRIAL)

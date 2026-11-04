@@ -19,8 +19,10 @@ from config.settings import settings
 from services.referral_commission_service import get_partner_cabinet_stats, list_partner_commissions
 from services.referral_service import ensure_user_referral_code, referral_link_for_user
 from services.user_service import get_user_by_telegram_id
-from utils.telegram_messages import safe_callback_answer, safe_edit_or_send
+from utils.logger import get_logger
+from utils.telegram_messages import respond_to_callback, safe_callback_answer
 
+logger = get_logger(__name__)
 router = Router()
 
 
@@ -73,16 +75,26 @@ def _fmt_rub(value: int) -> str:
 
 @router.callback_query(F.data == CB_MAIN_REFERRAL)
 async def cb_referral_program(callback: CallbackQuery, state: FSMContext) -> None:
-    await safe_callback_answer(callback)
     await state.clear()
-    async with async_session() as session:
-        user = await get_user_by_telegram_id(session, callback.from_user.id)
-        show_agree = not (user and user.partner_agreed_at)
-    await safe_edit_or_send(
-        callback.message,
-        referral_program_text(),
-        reply_markup=referral_program_keyboard(show_agree=show_agree),
-    )
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, callback.from_user.id)
+            show_agree = not (user and user.partner_agreed_at)
+        await respond_to_callback(
+            callback,
+            referral_program_text(),
+            reply_markup=referral_program_keyboard(show_agree=show_agree),
+        )
+    except Exception:
+        logger.exception("cb_referral_program failed telegram_id=%s", callback.from_user.id)
+        from keyboards.menu_keyboard import main_menu_keyboard
+        from services.messages import BOT_SYSTEM_ERROR_TEXT
+
+        await respond_to_callback(
+            callback,
+            BOT_SYSTEM_ERROR_TEXT,
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == CB_REF_AGREE)
@@ -102,8 +114,7 @@ async def cb_referral_agree(callback: CallbackQuery) -> None:
         f"{terms_before_link()}\n\n"
         f"<b>Ваша партнёрская ссылка:</b>\n{link}"
     )
-    await safe_callback_answer(callback)
-    await safe_edit_or_send(callback.message, text, reply_markup=referral_link_keyboard())
+    await respond_to_callback(callback, text, reply_markup=referral_link_keyboard())
 
 
 @router.callback_query(F.data == CB_REF_LINK)
@@ -118,9 +129,8 @@ async def cb_referral_link(callback: CallbackQuery) -> None:
             return
         await ensure_user_referral_code(session, user)
         link = referral_link_for_user(user.id)
-    await safe_callback_answer(callback)
-    await safe_edit_or_send(
-        callback.message,
+    await respond_to_callback(
+        callback,
         f"<b>Ваша партнёрская ссылка:</b>\n{link}",
         reply_markup=referral_link_keyboard(),
     )
@@ -135,7 +145,6 @@ async def cb_referral_cabinet(callback: CallbackQuery) -> None:
             return
         stats = await get_partner_cabinet_stats(session, user.id)
         rows = await list_partner_commissions(session, user.id, limit=8)
-    await safe_callback_answer(callback)
 
     lines = [
         "<b>Кабинет партнёра</b>",
@@ -159,8 +168,8 @@ async def cb_referral_cabinet(callback: CallbackQuery) -> None:
                 f"от {_fmt_rub(r.paid_amount)} · {r.created_at.strftime('%d.%m.%Y')}"
             )
 
-    await safe_edit_or_send(
-        callback.message,
+    await respond_to_callback(
+        callback,
         "\n".join(lines),
         reply_markup=referral_program_keyboard(show_agree=not user.partner_agreed_at),
     )

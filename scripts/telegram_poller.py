@@ -37,7 +37,6 @@ def _is_poller_host() -> bool:
 def _bootstrap_env() -> None:
     """Amvera: UI-переменные + файл из «Подгрузить .env» (/data/.env)."""
     os.environ.setdefault("PES_DATA_POLLER", "1")
-    os.environ.setdefault("SKIP_INIT_DB", "1")
     # В репозитории / платформе иногда попадает dev DATABASE_URL=sqlite — сбросить
     if "sqlite" in (os.getenv("DATABASE_URL") or "").lower():
         os.environ.pop("DATABASE_URL", None)
@@ -93,10 +92,10 @@ async def main() -> None:
     setup_logging()
     logger = get_logger(__name__)
     if os.getenv("SKIP_INIT_DB") == "1":
-        logger.info("Telegram poller: skip init_db (schema already on Postgres)")
+        logger.info("Telegram poller: skip init_db (SKIP_INIT_DB=1)")
     else:
         await init_db()
-        logger.info("Telegram poller: DB ready")
+        logger.info("Telegram poller: DB schema ready")
     from services.admin_notify_service import ensure_admin_notify_config
 
     await ensure_admin_notify_config()

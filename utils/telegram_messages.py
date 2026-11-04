@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, InlineKeyboardMarkup, Message
 
 from utils.logger import get_logger
 
@@ -42,3 +42,40 @@ async def safe_edit_or_send(
             await message.answer(text, reply_markup=reply_markup)
             return
         raise
+
+
+async def respond_to_callback(
+    callback: CallbackQuery,
+    text: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    answer_text: str | None = None,
+    show_alert: bool = False,
+) -> None:
+    """Ответ на inline-кнопку: ack + edit или новое сообщение в чат."""
+    if answer_text is not None or show_alert:
+        await safe_callback_answer(callback, answer_text, show_alert=show_alert)
+    else:
+        await safe_callback_answer(callback)
+
+    msg = callback.message
+    if isinstance(msg, Message):
+        try:
+            await msg.edit_text(text, reply_markup=reply_markup)
+            return
+        except TelegramBadRequest as exc:
+            err = str(exc).lower()
+            if "message is not modified" in err:
+                return
+            logger.info("callback edit_text failed, sending new message: %s", exc)
+        except AttributeError:
+            pass
+
+    if isinstance(msg, InaccessibleMessage) or msg is None:
+        logger.info("callback message inaccessible, send_message user_id=%s", callback.from_user.id)
+
+    await callback.bot.send_message(
+        callback.from_user.id,
+        text,
+        reply_markup=reply_markup,
+    )

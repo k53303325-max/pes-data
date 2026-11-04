@@ -62,7 +62,9 @@ from services.messages import (
 from services.user_service import get_user_by_telegram_id
 from utils.fsm_filters import NoStateFilter
 from utils.logger import get_logger
-from utils.telegram_messages import safe_callback_answer, safe_edit_or_send
+from aiogram.types import CallbackQuery as Cq
+
+from utils.telegram_messages import respond_to_callback, safe_callback_answer, safe_edit_or_send
 
 logger = get_logger(__name__)
 router = Router()
@@ -85,14 +87,22 @@ async def start_brief_flow(
     is_trial: bool,
     package_code: str | None = None,
     edit: bool = False,
+    callback: Cq | None = None,
 ) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, telegram_id)
         if not user:
-            if message:
+            if callback is not None:
+                await respond_to_callback(
+                    callback,
+                    "Сначала нажмите /start",
+                    answer_text="Нажмите /start",
+                    show_alert=True,
+                )
+            elif message:
                 await message.answer("Нажмите /start")
             return
-        draft = await get_or_create_draft(
+        await get_or_create_draft(
             session,
             user,
             is_trial=is_trial,
@@ -102,7 +112,9 @@ async def start_brief_flow(
 
     text = BRIEF_INTRO_TEXT
     kb = brief_intro_keyboard()
-    if edit:
+    if edit and callback is not None:
+        await respond_to_callback(callback, text, reply_markup=kb)
+    elif edit:
         await safe_edit_or_send(message, text, reply_markup=kb)
     elif message:
         await message.answer(text, reply_markup=kb)
@@ -111,8 +123,23 @@ async def start_brief_flow(
 @router.callback_query(F.data == CB_MAIN_NICHE)
 async def cb_niche(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    await safe_callback_answer(callback)
-    await start_brief_flow(callback.message, callback.from_user.id, is_trial=False, edit=True)
+    try:
+        await start_brief_flow(
+            callback.message,
+            callback.from_user.id,
+            is_trial=False,
+            edit=True,
+            callback=callback,
+        )
+    except Exception:
+        logger.exception("cb_niche failed telegram_id=%s", callback.from_user.id)
+        from keyboards.menu_keyboard import main_menu_keyboard
+
+        await respond_to_callback(
+            callback,
+            BOT_SYSTEM_ERROR_TEXT,
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == CB_BRIEF_START)
