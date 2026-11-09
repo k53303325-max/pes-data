@@ -10,7 +10,7 @@ def project_created_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
-                text="📱 Добавить номера конкурентов",
+                text="➕ Добавить номера",
                 callback_data=CB_ADD_COMPETITORS,
             )
         ],

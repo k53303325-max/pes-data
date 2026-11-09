@@ -10,6 +10,7 @@ from urllib.parse import quote
 from typing import Optional
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -18,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
 from admin_web.auth import check_credentials, get_admin_username, is_authenticated, login, logout
+from admin_web.site_lead import router as site_lead_router
 from bot.factory import ensure_telegram_webhook, get_bot, get_dispatcher
 from config.settings import settings
 from database.database import async_session, init_db
@@ -93,9 +95,11 @@ from services.delivery_service import (
 )
 from services.order_service import create_test_order, payment_success_text
 from services.telegram_notify import (
+    admin_uses_telegram_outbox,
     deliver_contacts_to_user,
     notify_package_completed,
     notify_payment_success,
+    queue_contacts_delivery,
 )
 from payments.yookassa import (
     process_successful_payment,
@@ -159,6 +163,21 @@ async def _app_lifespan(_application: FastAPI):
 
 
 app = FastAPI(title="Пёс Дата Admin", lifespan=_app_lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://pes-data.ru",
+        "https://www.pes-data.ru",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ],
+    allow_credentials=False,
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept"],
+)
+
+app.include_router(site_lead_router)
 
 
 async def _ensure_db() -> None:
@@ -1464,20 +1483,36 @@ async def delivery_send(
                 admin_id=admin_id,
                 note=note or None,
             )
+            user = await session.get(User, result.user_db_id)
+            if not user:
+                return RedirectResponse("/delivery?msg=Пользователь не найден", status_code=303)
 
-        notify = await deliver_contacts_to_user(
-            result.user_telegram_id,
-            result.phones,
-            result.received,
-            result.limit,
-            result.remaining,
-            delivery_type=result.delivery_type,
-            file_name=result.file_name,
-            file_data=result.file_data,
-        )
-
-        if result.order_completed:
-            await notify_package_completed(result.user_telegram_id)
+            if admin_uses_telegram_outbox():
+                notify = await queue_contacts_delivery(
+                    session,
+                    user,
+                    phones=result.phones,
+                    received=result.received,
+                    limit=result.limit,
+                    remaining=result.remaining,
+                    delivery_type=result.delivery_type,
+                    file_name=result.file_name,
+                    file_data=result.file_data,
+                    order_completed=result.order_completed,
+                )
+            else:
+                notify = await deliver_contacts_to_user(
+                    result.user_telegram_id,
+                    result.phones,
+                    result.received,
+                    result.limit,
+                    result.remaining,
+                    delivery_type=result.delivery_type,
+                    file_name=result.file_name,
+                    file_data=result.file_data,
+                )
+                if result.order_completed:
+                    await notify_package_completed(result.user_telegram_id)
 
         redirect_base = (
             f"/projects/{result.project_id}" if result.project_id else "/active-orders"
@@ -1488,9 +1523,15 @@ async def delivery_send(
                 + quote("Сохранено в БД, но Telegram: " + (notify.error or "")),
                 status_code=303,
             )
-        msg = f"Отправлено {result.sent_count} конт."
-        if notify.error:
-            msg += f" (частично: {notify.error})"
+        if notify.queued:
+            msg = (
+                f"Сохранено {result.sent_count} конт. "
+                "Сообщение в очереди — бот доставит в Telegram в течение нескольких секунд."
+            )
+        else:
+            msg = f"Отправлено {result.sent_count} конт."
+            if notify.error:
+                msg += f" (частично: {notify.error})"
         return RedirectResponse(f"{redirect_base}?msg={quote(msg)}", status_code=303)
     except ValueError as exc:
         return RedirectResponse(f"/delivery?msg={quote(str(exc))}", status_code=303)

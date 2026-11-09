@@ -69,8 +69,7 @@ async def render_profile(
                 kb = completed_keyboard()
             else:
                 text = format_cabinet_text(data)
-                can_add = bool(data.project_name)
-                kb = cabinet_keyboard(can_add_numbers=can_add)
+                kb = cabinet_keyboard()
 
     if edit:
         await target.edit_text(text, reply_markup=kb)

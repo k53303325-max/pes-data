@@ -124,11 +124,12 @@ def _format_project_block(data: ProfileData) -> str:
         return (
             f"🏢 <b>Проект</b>\n\n"
             f"{data.project_name}\n\n"
+            f"📱 Номеров в проекте: {data.competitors_count}\n\n"
         )
     if data.project_needs_name:
         return (
             "🏢 <b>Проект</b>\n\n"
-            "Создайте проект в разделе «Мои проекты» — укажите название.\n\n"
+            "Откройте «Мои проекты» и укажите название — затем можно добавить номера.\n\n"
         )
     return ""
 
@@ -150,8 +151,6 @@ def format_cabinet_text(data: ProfileData) -> str:
         f"📤 <b>Осталось получить</b>\n\n"
         f"{format_contact_limit(data.remaining)} контактов\n\n"
         f"{_format_project_block(data)}"
-        f"📱 <b>Номеров конкурентов на отслеживании</b>\n\n"
-        f"{data.competitors_count}\n\n"
         f"📅 <b>Дата покупки</b>\n\n"
         f"{_format_date(data.purchase_date)}\n\n"
         f"🟢 <b>Статус</b>\n\n"

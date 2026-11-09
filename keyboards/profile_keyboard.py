@@ -11,21 +11,14 @@ CB_BUY_PACKAGE = "buy_package"
 CB_BACK_TO_PROFILE = "profile"
 
 
-def cabinet_keyboard(*, can_add_numbers: bool = False) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text="🏢 Мои проекты", callback_data=CB_MY_PROJECTS)],
-    ]
-    if can_add_numbers:
-        rows.append(
-            [InlineKeyboardButton(text="➕ Добавить номера", callback_data=CB_ADD_COMPETITORS)]
-        )
-    rows.extend(
-        [
+def cabinet_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏢 Мои проекты", callback_data=CB_MY_PROJECTS)],
             [InlineKeyboardButton(text="💰 Купить пакет", callback_data=CB_BUY_PACKAGE)],
             [InlineKeyboardButton(text="🔄 Обновить", callback_data=CB_REFRESH_PROFILE)],
         ]
     )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def completed_keyboard() -> InlineKeyboardMarkup:

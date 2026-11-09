@@ -6,8 +6,10 @@ from dataclasses import dataclass
 import aiohttp
 
 from config.settings import settings
-from database.models import DeliveryType
+from database.models import DeliveryType, User
 from utils.logger import get_logger
+
+import os
 
 logger = get_logger(__name__)
 
@@ -20,6 +22,25 @@ class DeliveryNotifyResult:
     message_sent: bool
     contacts_sent: int
     error: str | None = None
+    queued: bool = False
+
+
+def admin_uses_telegram_outbox() -> bool:
+    """Админка на ONREZA/Vercel не доходит до api.telegram.org — шлём через poller."""
+    return (
+        settings.is_onreza
+        or settings.is_vercel
+        or os.getenv("TELEGRAM_BOT_DISABLED") == "1"
+    )
+
+
+def package_completed_message() -> str:
+    return (
+        "🎉 <b>Ваш пакет полностью выполнен!</b>\n\n"
+        "Вы получили все оплаченные контакты.\n\n"
+        "Спасибо за использование сервиса «Пёс Дата».\n\n"
+        "Для продолжения работы вы можете приобрести новый пакет."
+    )
 
 
 async def _telegram_post(method: str, **kwargs) -> tuple[bool, str]:
@@ -99,6 +120,83 @@ def _format_phone_lines(phones: list[str]) -> str:
     return "\n\n".join(html.escape(p.lstrip("+")) for p in phones)
 
 
+def build_contacts_delivery_payload(
+    phones: list[str],
+    received: int,
+    limit: int,
+    remaining: int,
+    *,
+    delivery_type: str,
+    file_name: str | None,
+    file_data: bytes | None,
+) -> tuple[str, str | None, bytes | None]:
+    """Текст/caption и опционально файл для outbox или прямой отправки."""
+    from services.delivery_service import phones_to_text
+
+    sent_today = len(phones)
+    stats = _format_stats_block(sent_today, received, limit, remaining)
+
+    if delivery_type == DeliveryType.FILE.value and file_data:
+        caption = stats + "\n\nКонтакты прикреплены к этому сообщению."
+        return caption, file_name or "contacts.txt", file_data
+
+    phone_block = _format_phone_lines(phones)
+    full = stats + "\n\nВаши новые контакты:\n\n" + phone_block
+    if len(full) <= 4000:
+        return full, None, None
+
+    caption = stats + "\n\nКонтакты прикреплены к этому сообщению."
+    blob = phones_to_text(phones).encode("utf-8")
+    return caption, file_name or "contacts.txt", blob
+
+
+async def queue_contacts_delivery(
+    session,
+    user: User,
+    *,
+    phones: list[str],
+    received: int,
+    limit: int,
+    remaining: int,
+    delivery_type: str,
+    file_name: str | None,
+    file_data: bytes | None,
+    order_completed: bool,
+) -> DeliveryNotifyResult:
+    from services.telegram_outbox_service import enqueue_telegram_message
+
+    text, out_name, out_data = build_contacts_delivery_payload(
+        phones,
+        received,
+        limit,
+        remaining,
+        delivery_type=delivery_type,
+        file_name=file_name,
+        file_data=file_data,
+    )
+    await enqueue_telegram_message(
+        session,
+        user,
+        text,
+        source="admin.delivery",
+        file_name=out_name,
+        file_data=out_data,
+    )
+    if order_completed:
+        await enqueue_telegram_message(
+            session,
+            user,
+            package_completed_message(),
+            source="admin.delivery.package_completed",
+        )
+    return DeliveryNotifyResult(
+        True,
+        False,
+        len(phones),
+        queued=True,
+    )
+
+
 async def deliver_contacts_to_user(
     telegram_id: int,
     phones: list[str],
@@ -116,10 +214,19 @@ async def deliver_contacts_to_user(
         return DeliveryNotifyResult(False, False, 0, "Список контактов пуст")
 
     sent_today = len(phones)
-    stats = _format_stats_block(sent_today, received, limit, remaining)
+    text, out_name, out_data = build_contacts_delivery_payload(
+        phones,
+        received,
+        limit,
+        remaining,
+        delivery_type=delivery_type,
+        file_name=file_name,
+        file_data=file_data,
+    )
 
-    if delivery_type == DeliveryType.FILE.value and file_data:
-        text = stats + "\n\nКонтакты прикреплены к этому сообщению."
+    if out_data:
+        file_data = out_data
+        file_name = out_name
         form = aiohttp.FormData()
         form.add_field("chat_id", str(telegram_id))
         form.add_field("caption", text)
@@ -149,56 +256,17 @@ async def deliver_contacts_to_user(
             return DeliveryNotifyResult(True, True, sent_today)
         return DeliveryNotifyResult(False, False, 0, err[:300])
 
-    phone_block = _format_phone_lines(phones)
-    text = stats + "\n\nВаши новые контакты:\n\n" + phone_block
-
-    if len(text) <= 4000:
-        ok, err = await _telegram_post(
-            "sendMessage",
-            json={"chat_id": telegram_id, "text": text, "parse_mode": "HTML"},
-        )
-        if ok:
-            return DeliveryNotifyResult(True, True, sent_today)
-        return DeliveryNotifyResult(False, False, 0, err[:300])
-
-    ok_header, err = await _telegram_post(
+    ok, err = await _telegram_post(
         "sendMessage",
-        json={"chat_id": telegram_id, "text": stats, "parse_mode": "HTML"},
+        json={"chat_id": telegram_id, "text": text, "parse_mode": "HTML"},
     )
-    if not ok_header:
-        return DeliveryNotifyResult(False, False, 0, err[:300])
-
-    chunks = [phones[i : i + 40] for i in range(0, len(phones), 40)]
-    sent = 0
-    errors: list[str] = []
-    for idx, chunk in enumerate(chunks, start=1):
-        chunk_text = f"📋 <b>Контакты ({idx}/{len(chunks)}):</b>\n\n{_format_phone_lines(chunk)}"
-        ok, chunk_err = await _telegram_post(
-            "sendMessage",
-            json={"chat_id": telegram_id, "text": chunk_text, "parse_mode": "HTML"},
-        )
-        if ok:
-            sent += len(chunk)
-        else:
-            errors.append(chunk_err[:120])
-
-    if sent > 0:
-        return DeliveryNotifyResult(
-            True,
-            True,
-            sent,
-            "; ".join(errors) if errors else None,
-        )
-    return DeliveryNotifyResult(False, True, 0, "; ".join(errors) if errors else "Ошибка отправки")
+    if ok:
+        return DeliveryNotifyResult(True, True, sent_today)
+    return DeliveryNotifyResult(False, False, 0, err[:300])
 
 
 async def notify_package_completed(telegram_id: int) -> bool:
-    text = (
-        "🎉 <b>Ваш пакет полностью выполнен!</b>\n\n"
-        "Вы получили все оплаченные контакты.\n\n"
-        "Спасибо за использование сервиса «Пёс Дата».\n\n"
-        "Для продолжения работы вы можете приобрести новый пакет."
-    )
+    text = package_completed_message()
     reply_markup = {
         "inline_keyboard": [
             [{"text": "💰 Купить новый пакет", "callback_data": "buy_package"}]
