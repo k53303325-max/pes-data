@@ -5,24 +5,27 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from handlers.project import ProjectNameState
+
 from database.database import async_session
 from keyboards.profile_keyboard import (
     CB_BACK_TO_PROFILE,
     CB_BUY_PACKAGE,
     CB_MY_COMPETITORS,
     CB_MY_PACKAGE,
+    CB_MY_PROJECTS,
     CB_PROFILE,
     CB_REFRESH_PROFILE,
     cabinet_keyboard,
     completed_keyboard,
-    competitors_keyboard,
     no_package_keyboard,
+    project_detail_keyboard,
 )
 from keyboards.start_keyboard import CB_BUY_NEW
 from services.profile_service import (
     format_cabinet_text,
     format_completed_text,
-    get_competitors_view,
+    get_my_project_view,
     load_profile_data,
 )
 from services.user_service import get_active_order, get_user_by_telegram_id
@@ -66,7 +69,8 @@ async def render_profile(
                 kb = completed_keyboard()
             else:
                 text = format_cabinet_text(data)
-                kb = cabinet_keyboard()
+                can_add = bool(data.project_name)
+                kb = cabinet_keyboard(can_add_numbers=can_add)
 
     if edit:
         await target.edit_text(text, reply_markup=kb)
@@ -92,8 +96,8 @@ async def cmd_profile(message: Message) -> None:
     await render_profile(message)
 
 
-@router.callback_query(F.data == CB_MY_COMPETITORS)
-async def cb_my_competitors(callback: CallbackQuery) -> None:
+@router.callback_query(F.data.in_({CB_MY_PROJECTS, CB_MY_COMPETITORS}))
+async def cb_my_projects(callback: CallbackQuery, state: FSMContext) -> None:
     async with async_session() as session:
         user = await get_user_by_telegram_id(session, callback.from_user.id)
         if not user:
@@ -106,17 +110,15 @@ async def cb_my_competitors(callback: CallbackQuery) -> None:
             await callback.answer("Сначала оплатите пакет", show_alert=True)
             return
 
-        text, total = await get_competitors_view(session, user.id)
-
-    if total == 0:
-        text = (
-            "📱 <b>Ваши конкуренты</b>\n\n"
-            "Всего номеров:\n0\n\n"
-            "Вы ещё не добавили номера конкурентов."
-        )
+        text, needs_name, can_add = await get_my_project_view(session, user.id)
 
     await callback.answer()
-    await callback.message.edit_text(text, reply_markup=competitors_keyboard())
+    await callback.message.edit_text(
+        text,
+        reply_markup=project_detail_keyboard(can_add_numbers=can_add),
+    )
+    if needs_name:
+        await state.set_state(ProjectNameState.waiting)
 
 
 @router.callback_query(F.data.in_({CB_BUY_PACKAGE, CB_BUY_NEW}))

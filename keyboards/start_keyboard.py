@@ -27,9 +27,11 @@ def choose_package_keyboard() -> InlineKeyboardMarkup:
 
 
 def active_user_keyboard() -> InlineKeyboardMarkup:
+    from keyboards.profile_keyboard import CB_MY_PROJECTS
+
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Мой пакет", callback_data=CB_MY_PACKAGE)],
-        [InlineKeyboardButton(text="📱 Добавить номера конкурентов", callback_data=CB_ADD_COMPETITORS)],
+        [InlineKeyboardButton(text="🏢 Мои проекты", callback_data=CB_MY_PROJECTS)],
         [InlineKeyboardButton(text="💰 Пакеты и цены", callback_data=CB_MAIN_PACKAGES)],
     ])
 

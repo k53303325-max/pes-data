@@ -52,7 +52,8 @@ async def _start_input_mode(
         if pending:
             await state.set_state(ProjectNameState.waiting)
             await target.answer(
-                f"Сначала укажите название проекта.\n\n{PROJECT_NAME_PROMPT}"
+                "Сначала создайте проект в разделе «Мои проекты» — "
+                f"укажите название.\n\n{PROJECT_NAME_PROMPT}"
             )
             return
 
