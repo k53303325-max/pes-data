@@ -8,7 +8,7 @@ CB_MY_PROJECTS = "my_projects"
 CB_MY_COMPETITORS = "my_competitors"  # legacy callback в старых сообщениях
 CB_REFRESH_PROFILE = "refresh_profile"
 CB_BUY_PACKAGE = "buy_package"
-CB_BACK_TO_PROFILE = "profile"
+CB_BACK_TO_PROFILE = "back_to_cabinet"
 
 
 def cabinet_keyboard() -> InlineKeyboardMarkup:

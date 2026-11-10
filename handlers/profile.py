@@ -30,6 +30,7 @@ from services.profile_service import (
 )
 from services.user_service import get_active_order, get_user_by_telegram_id
 from utils.logger import get_logger
+from utils.telegram_messages import respond_to_callback, safe_edit_or_send
 
 logger = get_logger(__name__)
 router = Router()
@@ -72,22 +73,36 @@ async def render_profile(
                 kb = cabinet_keyboard()
 
     if edit:
-        await target.edit_text(text, reply_markup=kb)
+        await safe_edit_or_send(target, text, reply_markup=kb)
     else:
         await target.answer(text, reply_markup=kb)
 
 
+async def _profile_text_and_keyboard(telegram_id: int) -> tuple[str, object | None]:
+    async with async_session() as session:
+        user = await get_user_by_telegram_id(session, telegram_id)
+        if not user:
+            return "Нажмите /start", None
+        data = await load_profile_data(session, user.id)
+        if not data:
+            return (
+                "У вас нет активного пакета.\n\nВыберите тариф, чтобы начать.",
+                no_package_keyboard(),
+            )
+        if data.is_completed:
+            return format_completed_text(data), completed_keyboard()
+        return format_cabinet_text(data), cabinet_keyboard()
+
+
 @router.callback_query(F.data.in_(PROFILE_CALLBACKS))
-async def cb_profile(callback: CallbackQuery) -> None:
-    await render_profile(
-        callback.message,
-        telegram_id=callback.from_user.id,
-        edit=True,
-    )
+async def cb_profile(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    text, kb = await _profile_text_and_keyboard(callback.from_user.id)
     if callback.data == CB_REFRESH_PROFILE:
+        await respond_to_callback(callback, text, reply_markup=kb, ack=False)
         await callback.answer("Данные обновлены")
     else:
-        await callback.answer()
+        await respond_to_callback(callback, text, reply_markup=kb)
 
 
 @router.message(Command("profile"))
@@ -111,13 +126,16 @@ async def cb_my_projects(callback: CallbackQuery, state: FSMContext) -> None:
 
         text, needs_name, can_add = await get_my_project_view(session, user.id)
 
-    await callback.answer()
-    await callback.message.edit_text(
+    if needs_name:
+        await state.set_state(ProjectNameState.waiting)
+    else:
+        await state.clear()
+
+    await respond_to_callback(
+        callback,
         text,
         reply_markup=project_detail_keyboard(can_add_numbers=can_add),
     )
-    if needs_name:
-        await state.set_state(ProjectNameState.waiting)
 
 
 @router.callback_query(F.data.in_({CB_BUY_PACKAGE, CB_BUY_NEW}))

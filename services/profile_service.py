@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -121,9 +122,10 @@ def _format_date(value: datetime | None) -> str:
 
 def _format_project_block(data: ProfileData) -> str:
     if data.project_name:
+        name = html.escape(data.project_name)
         return (
             f"🏢 <b>Проект</b>\n\n"
-            f"{data.project_name}\n\n"
+            f"{name}\n\n"
             f"📱 Номеров в проекте: {data.competitors_count}\n\n"
         )
     if data.project_needs_name:
@@ -201,9 +203,10 @@ def format_project_need_name_text() -> str:
 
 
 def format_project_detail_text(project_name: str, phones: list[str], total: int) -> str:
+    name = html.escape(project_name)
     return (
         "🏢 <b>Мои проекты</b>\n\n"
-        f"<b>Название:</b>\n{project_name}\n\n"
+        f"<b>Название:</b>\n{name}\n\n"
         f"{format_project_numbers_block(phones, total)}"
     )
 
