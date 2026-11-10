@@ -234,6 +234,11 @@ def _migrate_projects(sync_conn) -> None:
     if not insp.has_table("projects"):
         return
 
+    if dialect == "postgresql":
+        sync_conn.execute(
+            text("ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_order_id_key")
+        )
+
     if insp.has_table("competitor_numbers"):
         cols = {c["name"] for c in insp.get_columns("competitor_numbers")}
         if "project_id" not in cols:

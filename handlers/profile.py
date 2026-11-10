@@ -15,18 +15,27 @@ from keyboards.profile_keyboard import (
     CB_MY_PACKAGE,
     CB_MY_PROJECTS,
     CB_PROFILE,
+    CB_PROJECT_CREATE,
+    CB_PROJECT_OPEN_PREFIX,
     CB_REFRESH_PROFILE,
     cabinet_keyboard,
     completed_keyboard,
     no_package_keyboard,
     project_detail_keyboard,
+    projects_list_keyboard,
 )
 from keyboards.start_keyboard import CB_BUY_NEW
 from services.profile_service import (
     format_cabinet_text,
     format_completed_text,
-    get_my_project_view,
+    format_project_need_name_text,
+    format_projects_list_text,
+    get_project_detail_view,
     load_profile_data,
+)
+from services.project_service import (
+    create_additional_project,
+    list_projects_for_active_order,
 )
 from services.user_service import get_active_order, get_user_by_telegram_id
 from utils.logger import get_logger
@@ -110,6 +119,50 @@ async def cmd_profile(message: Message) -> None:
     await render_profile(message)
 
 
+async def _render_projects_hub(
+    callback: CallbackQuery, state: FSMContext, user_id: int
+) -> None:
+    async with async_session() as session:
+        projects = await list_projects_for_active_order(session, user_id)
+
+    await state.update_data(current_project_id=None)
+
+    if len(projects) > 1:
+        text = format_projects_list_text(projects)
+        kb = projects_list_keyboard(projects)
+        await state.clear()
+        await respond_to_callback(callback, text, reply_markup=kb)
+        return
+
+    if len(projects) == 1:
+        project = projects[0]
+        await state.update_data(current_project_id=project.id)
+        async with async_session() as session:
+            text, needs_name, can_add = await get_project_detail_view(
+                session, user_id, project.id
+            )
+        if needs_name:
+            await state.set_state(ProjectNameState.waiting)
+        else:
+            await state.clear()
+            await state.update_data(current_project_id=project.id)
+        await respond_to_callback(
+            callback,
+            text,
+            reply_markup=project_detail_keyboard(
+                can_add_numbers=can_add,
+                show_create=True,
+                projects_count=1,
+            ),
+        )
+        return
+
+    text = format_projects_list_text([])
+    kb = projects_list_keyboard([])
+    await state.clear()
+    await respond_to_callback(callback, text, reply_markup=kb)
+
+
 @router.callback_query(F.data.in_({CB_MY_PROJECTS, CB_MY_COMPETITORS}))
 async def cb_my_projects(callback: CallbackQuery, state: FSMContext) -> None:
     async with async_session() as session:
@@ -119,22 +172,69 @@ async def cb_my_projects(callback: CallbackQuery, state: FSMContext) -> None:
             return
 
         order = await get_active_order(session, user.id)
-        data = await load_profile_data(session, user.id)
-        if not order and not data:
+        if not order:
             await callback.answer("Сначала оплатите пакет", show_alert=True)
             return
 
-        text, needs_name, can_add = await get_my_project_view(session, user.id)
+    await _render_projects_hub(callback, state, user.id)
 
+
+@router.callback_query(F.data.startswith(CB_PROJECT_OPEN_PREFIX))
+async def cb_project_open(callback: CallbackQuery, state: FSMContext) -> None:
+    project_id = int(callback.data.removeprefix(CB_PROJECT_OPEN_PREFIX))
+    async with async_session() as session:
+        user = await get_user_by_telegram_id(session, callback.from_user.id)
+        if not user:
+            await callback.answer("Нажмите /start", show_alert=True)
+            return
+        projects = await list_projects_for_active_order(session, user.id)
+        text, needs_name, can_add = await get_project_detail_view(
+            session, user.id, project_id
+        )
+
+    await state.update_data(current_project_id=project_id)
     if needs_name:
         await state.set_state(ProjectNameState.waiting)
     else:
         await state.clear()
+        await state.update_data(current_project_id=project_id)
 
     await respond_to_callback(
         callback,
         text,
-        reply_markup=project_detail_keyboard(can_add_numbers=can_add),
+        reply_markup=project_detail_keyboard(
+            can_add_numbers=can_add,
+            show_create=True,
+            projects_count=len(projects),
+        ),
+    )
+
+
+@router.callback_query(F.data == CB_PROJECT_CREATE)
+async def cb_project_create(callback: CallbackQuery, state: FSMContext) -> None:
+    async with async_session() as session:
+        user = await get_user_by_telegram_id(session, callback.from_user.id)
+        if not user:
+            await callback.answer("Нажмите /start", show_alert=True)
+            return
+        order = await get_active_order(session, user.id)
+        if not order:
+            await callback.answer("Сначала оплатите пакет", show_alert=True)
+            return
+        project = await create_additional_project(session, user, order)
+        project_id = project.id
+
+    await state.set_state(ProjectNameState.waiting)
+    await state.update_data(current_project_id=project_id)
+    text = format_project_need_name_text()
+    await respond_to_callback(
+        callback,
+        text,
+        reply_markup=project_detail_keyboard(
+            can_add_numbers=False,
+            show_create=False,
+            projects_count=2,
+        ),
     )
 
 

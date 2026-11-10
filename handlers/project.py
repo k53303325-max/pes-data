@@ -68,7 +68,9 @@ async def _save_project_name(message: Message, state: FSMContext) -> None:
             await message.answer("Нажмите /start")
             return
 
-        project = await get_project_needing_name(session, user.id)
+        data = await state.get_data()
+        pid = data.get("current_project_id")
+        project = await get_project_needing_name(session, user.id, project_id=pid)
         if not project:
             await state.clear()
             return
@@ -84,9 +86,12 @@ async def _save_project_name(message: Message, state: FSMContext) -> None:
         await notify_admin_new_project(user, project.project_name or "")
 
     await state.clear()
+    await state.update_data(current_project_id=project.id)
+    from keyboards.profile_keyboard import project_detail_keyboard
+
     await message.answer(
         project_created_text(project.project_name or ""),
-        reply_markup=project_created_keyboard(),
+        reply_markup=project_detail_keyboard(can_add_numbers=True, show_create=True),
     )
 
 

@@ -19,6 +19,7 @@ from database.models import (
 )
 from services.activity_service import log_activity
 from services.tariff_service import format_price
+from services.user_service import get_active_order
 
 
 PROJECT_NAME_PROMPT = (
@@ -39,6 +40,44 @@ def project_created_text(project_name: str) -> str:
     )
 
 
+async def list_projects_for_active_order(
+    session: AsyncSession, user_id: int
+) -> list[Project]:
+    order = await get_active_order(session, user_id)
+    if not order:
+        return []
+    result = await session.execute(
+        select(Project)
+        .where(Project.user_id == user_id, Project.order_id == order.id)
+        .order_by(Project.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def create_additional_project(
+    session: AsyncSession, user: User, order: Order
+) -> Project:
+    project = Project(
+        user_id=user.id,
+        order_id=order.id,
+        project_name=None,
+        status=ProjectStatus.ACTIVE.value,
+    )
+    session.add(project)
+    await session.commit()
+    await session.refresh(project)
+    return project
+
+
+async def get_project_for_user(
+    session: AsyncSession, user_id: int, project_id: int
+) -> Project | None:
+    result = await session.execute(
+        select(Project).where(Project.id == project_id, Project.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_project_for_order(
     session: AsyncSession,
     user: User,
@@ -49,7 +88,7 @@ async def create_project_for_order(
     price: int = 0,
 ) -> Project:
     existing = await session.execute(
-        select(Project).where(Project.order_id == order.id)
+        select(Project).where(Project.order_id == order.id).limit(1)
     )
     project = existing.scalar_one_or_none()
     if project:
@@ -89,29 +128,48 @@ async def create_project_for_order(
 
 
 async def get_project_by_order(session: AsyncSession, order_id: int) -> Project | None:
-    result = await session.execute(select(Project).where(Project.order_id == order_id))
+    result = await session.execute(
+        select(Project).where(Project.order_id == order_id).order_by(Project.id.asc()).limit(1)
+    )
     return result.scalar_one_or_none()
 
 
-async def get_active_project(session: AsyncSession, user_id: int) -> Project | None:
+async def get_active_project(
+    session: AsyncSession, user_id: int, *, project_id: int | None = None
+) -> Project | None:
+    if project_id:
+        return await get_project_for_user(session, user_id, project_id)
+    projects = await list_projects_for_active_order(session, user_id)
+    if not projects:
+        return None
+    for p in projects:
+        if p.project_name:
+            return p
+    return projects[0]
+
+
+async def get_project_needing_name(
+    session: AsyncSession, user_id: int, *, project_id: int | None = None
+) -> Project | None:
+    if project_id:
+        project = await get_project_for_user(session, user_id, project_id)
+        if project and not project.project_name:
+            return project
+        return None
+    order = await get_active_order(session, user_id)
+    if not order:
+        return None
     result = await session.execute(
         select(Project)
-        .join(Order, Project.order_id == Order.id)
         .where(
             Project.user_id == user_id,
-            Order.status.in_([OrderStatus.ACTIVE.value, OrderStatus.IN_PROGRESS.value]),
+            Project.order_id == order.id,
+            Project.project_name.is_(None),
         )
         .order_by(Project.created_at.desc())
         .limit(1)
     )
     return result.scalar_one_or_none()
-
-
-async def get_project_needing_name(session: AsyncSession, user_id: int) -> Project | None:
-    project = await get_active_project(session, user_id)
-    if project and not project.project_name:
-        return project
-    return None
 
 
 async def set_project_name(session: AsyncSession, project: Project, name: str) -> Project:

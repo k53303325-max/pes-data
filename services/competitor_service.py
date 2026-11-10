@@ -144,6 +144,20 @@ async def list_active_competitor_phones(session: AsyncSession, user_id: int) -> 
     return list(result.scalars().all())
 
 
+async def list_project_competitor_phones(
+    session: AsyncSession, project_id: int
+) -> list[str]:
+    result = await session.execute(
+        select(CompetitorNumber.phone)
+        .where(
+            CompetitorNumber.project_id == project_id,
+            CompetitorNumber.status == CompetitorStatus.ACTIVE.value,
+        )
+        .order_by(CompetitorNumber.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 def format_process_result(result: ProcessCompetitorsResult) -> str:
     return (
         "✅ <b>Номера успешно обработаны.</b>\n\n"

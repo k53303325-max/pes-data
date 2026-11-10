@@ -201,7 +201,7 @@ class Order(Base):
     tariff: Mapped["Tariff"] = relationship(back_populates="orders")
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
     deliveries: Mapped[list["Delivery"]] = relationship(back_populates="order")
-    project: Mapped[Optional["Project"]] = relationship(back_populates="order", uselist=False)
+    projects: Mapped[list["Project"]] = relationship(back_populates="order")
 
 
 class Payment(Base):
@@ -228,7 +228,7 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
     project_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default=ProjectStatus.ACTIVE.value, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

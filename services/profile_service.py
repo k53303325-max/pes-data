@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Order, OrderStatus, Payment, PaymentStatus
-from services.competitor_service import count_active_competitors, list_active_competitor_phones
-from services.project_service import get_active_project
+from services.competitor_service import count_active_competitors, list_project_competitor_phones
+from services.project_service import list_projects_for_active_order
 from services.tariff_service import format_contact_limit, format_price
 from services.user_service import get_active_order, order_remaining
 
@@ -95,9 +95,10 @@ async def load_profile_data(session: AsyncSession, user_id: int) -> ProfileData 
     competitors_count = await count_active_competitors(session, user_id)
     price = await _get_order_payment_amount(session, order)
     purchase_date = order.paid_at or order.created_at
-    project = await get_active_project(session, user_id)
-    project_name = project.project_name if project else None
-    project_needs_name = bool(project and not project.project_name)
+    order_projects = await list_projects_for_active_order(session, user_id)
+    named = [p for p in order_projects if p.project_name]
+    project_name = named[0].project_name if named else None
+    project_needs_name = any(not p.project_name for p in order_projects)
 
     return ProfileData(
         order=order,
@@ -211,35 +212,38 @@ def format_project_detail_text(project_name: str, phones: list[str], total: int)
     )
 
 
-async def get_my_project_view(
-    session: AsyncSession, user_id: int
-) -> tuple[str, bool, bool]:
-    """Текст экрана, нужно ли имя, можно ли добавлять номера."""
-    project = await get_active_project(session, user_id)
-    if not project:
+def format_projects_list_text(projects: list) -> str:
+    if not projects:
         return (
             "🏢 <b>Мои проекты</b>\n\n"
-            "Нет активного пакета. Сначала оплатите тариф.",
-            False,
-            False,
+            "Проектов пока нет. Нажмите «Создать проект»."
         )
+    lines = []
+    for p in projects:
+        name = html.escape(p.project_name or "— без названия —")
+        lines.append(f"• {name}")
+    body = "\n".join(lines)
+    return (
+        "🏢 <b>Мои проекты</b>\n\n"
+        f"{body}\n\n"
+        "Выберите проект или создайте новый."
+    )
+
+
+async def get_project_detail_view(
+    session: AsyncSession, user_id: int, project_id: int
+) -> tuple[str, bool, bool]:
+    from services.project_service import get_project_for_user
+
+    project = await get_project_for_user(session, user_id, project_id)
+    if not project:
+        return "Проект не найден.", False, False
     if not project.project_name:
         return format_project_need_name_text(), True, False
-
-    phones = await list_active_competitor_phones(session, user_id)
+    phones = await list_project_competitor_phones(session, project.id)
     total = len(phones)
     return (
         format_project_detail_text(project.project_name, phones, total),
         False,
         True,
     )
-
-
-async def get_competitors_view(session: AsyncSession, user_id: int) -> tuple[str, int]:
-    phones = await list_active_competitor_phones(session, user_id)
-    total = len(phones)
-    project = await get_active_project(session, user_id)
-    name = project.project_name if project else None
-    if name:
-        return format_project_detail_text(name, phones, total), total
-    return format_project_numbers_block(phones, total), total

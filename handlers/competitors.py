@@ -48,7 +48,9 @@ async def _start_input_mode(
             await target.answer("Сначала оплатите пакет через «Выбрать пакет»")
             return
 
-        pending = await get_project_needing_name(session, user.id)
+        data = await state.get_data()
+        pid = data.get("current_project_id")
+        pending = await get_project_needing_name(session, user.id, project_id=pid)
         if pending:
             await state.set_state(ProjectNameState.waiting)
             await target.answer(
@@ -86,7 +88,9 @@ async def receive_competitor_numbers(message: Message, state: FSMContext) -> Non
             await message.answer("❌ Пакет не активен. Оплатите тариф через /start")
             return
 
-        project = await get_active_project(session, user.id)
+        data = await state.get_data()
+        pid = data.get("current_project_id")
+        project = await get_active_project(session, user.id, project_id=pid)
         result = await save_competitors(
             session,
             user.id,
