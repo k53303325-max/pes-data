@@ -237,7 +237,7 @@ class Project(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="projects")
-    order: Mapped["Order"] = relationship(back_populates="project")
+    order: Mapped["Order"] = relationship(back_populates="projects")
     competitor_numbers: Mapped[list["CompetitorNumber"]] = relationship(back_populates="project")
     deliveries: Mapped[list["Delivery"]] = relationship(back_populates="project")
     activity_logs: Mapped[list["ClientActivityLog"]] = relationship(back_populates="project")
